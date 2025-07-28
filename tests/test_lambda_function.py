@@ -1,8 +1,19 @@
 """Tests for Lambda function handler."""
 
+import os
 import json
 from unittest.mock import Mock, patch
 import pytest
+
+# Set test environment
+os.environ.update({
+    'AWS_REGION': 'us-east-1',
+    'IS_TEST_ENV': 'true',
+    'SESSIONS_TABLE_NAME': 'test-sessions',
+    'TURNS_TABLE_NAME': 'test-turns',
+    'PLAYERS_TABLE_NAME': 'test-players',
+    'GAMEDATA_S3_BUCKET': 'test-bucket'
+})
 
 from src.lambda_function import lambda_handler, extract_session_info, process_ses_email
 
@@ -41,7 +52,12 @@ class TestLambdaHandler:
 
     def test_lambda_handler_error(self):
         """Test lambda handler error handling."""
-        event = {"Records": []}
+        event = {
+            "Records": [{
+                "eventSource": "aws:ses",
+                "ses": {"mail": {}, "receipt": {}}
+            }]
+        }
         
         with patch('src.lambda_function.process_ses_email', side_effect=Exception("Test error")):
             result = lambda_handler(event, Mock())

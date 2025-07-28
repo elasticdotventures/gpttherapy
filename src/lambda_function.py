@@ -13,8 +13,16 @@ from typing import Any, Dict, Optional
 import boto3
 from botocore.exceptions import ClientError
 
-from storage import StorageManager, extract_session_id_from_email
-from ai_agent import AIAgent
+try:
+    from .storage import StorageManager, extract_session_id_from_email
+    from .ai_agent import AIAgent
+    from .game_engine import GameEngine
+    from .game_state import GameStateManager
+except ImportError:
+    from storage import StorageManager, extract_session_id_from_email
+    from ai_agent import AIAgent
+    from game_engine import GameEngine
+    from game_state import GameStateManager
 
 # Configure logging
 logger = logging.getLogger()
@@ -25,9 +33,11 @@ s3_client = boto3.client("s3")
 ses_client = boto3.client("ses", region_name=os.environ.get('SES_REGION', 'ap-southeast-2'))
 bedrock_client = boto3.client("bedrock-runtime")
 
-# Storage manager and AI agent
+# Storage manager, AI agent, game engine, and game state
 storage = StorageManager()
 ai_agent = AIAgent()
+game_engine = GameEngine(storage)
+game_state_manager = GameStateManager(storage)
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -55,10 +65,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
         
     except Exception as e:
-        logger.error(f"Error processing email: {str(e)}", exc_info=True)
+        error_id = f"lambda-{context.aws_request_id if context else 'unknown'}"
+        logger.error(f"Error processing email [{error_id}]: {str(e)}", exc_info=True)
+        
+        # Log event details for debugging
+        logger.error(f"Event data [{error_id}]: {json.dumps(event, default=str)}")
+        
         return {
             "statusCode": 500,
-            "body": json.dumps({"error": "Internal server error"})
+            "body": json.dumps({
+                "error": "Internal server error",
+                "error_id": error_id,
+                "message": "Please contact support with this error ID"
+            })
         }
 
 
@@ -92,7 +111,12 @@ def process_ses_email(record: Dict[str, Any]) -> None:
             initialize_new_session(mail, receipt)
             
     except Exception as e:
-        logger.error(f"Error processing SES record: {str(e)}", exc_info=True)
+        error_context = {
+            "message_id": mail.get("messageId", "unknown"),
+            "from": mail.get("commonHeaders", {}).get("from", ["unknown"]),
+            "recipients": receipt.get("recipients", ["unknown"])
+        }
+        logger.error(f"Error processing SES record: {str(e)}", exc_info=True, extra=error_context)
         raise
 
 
@@ -141,8 +165,12 @@ def process_session_turn(session_info: Dict[str, Any], mail: Dict[str, Any], rec
         # 1. Retrieve session state from storage
         session = storage.get_session(session_id)
         if not session:
-            logger.error(f"Session {session_id} not found")
-            send_error_email(player_email, "Session not found")
+            logger.error(f"Session {session_id} not found for player {player_email}")
+            send_error_email(
+                player_email, 
+                "Session not found", 
+                f"The session {session_id} could not be found. Please verify the session ID or start a new session."
+            )
             return
         
         # 2. Parse player input from email
@@ -157,52 +185,82 @@ def process_session_turn(session_info: Dict[str, Any], mail: Dict[str, Any], rec
         # Archive the email
         storage.archive_email(session_id, email_content)
         
-        # 3. Save the turn
-        current_turn = session.get('turn_count', 0) + 1
+        # 3. Process turn through game engine
         turn_data = {
             "email_content": email_content,
-            "status": "received"
+            "status": "received",
+            "processed_at": email_content["timestamp"]
         }
         
-        storage.save_turn(session_id, current_turn, player_email, turn_data)
+        game_state = game_engine.process_player_turn(session_id, player_email, turn_data)
         
-        # 4. Get turn history for context
+        # 4. Get turn history and game state for AI context
         turn_history = storage.get_session_turns(session_id, limit=10)
+        session_game_state = game_state_manager.get_session_summary(session_id)
         
-        # 5. Generate AI response
-        session_context = {
-            **session,
-            "current_player": player_email,
-            "current_turn": current_turn
-        }
+        # 5. Determine AI response based on game state
+        if game_state['turn_complete']:
+            # All players have submitted - generate narrative response
+            session_context = {
+                **session,
+                "current_player": player_email,
+                "current_turn": game_state['current_turn'],
+                "turn_complete": True,
+                "all_players_responded": True
+            }
+            
+            ai_response = ai_agent.generate_response(
+                game_type=session["game_type"],
+                session_context=session_context,
+                player_input=email_content["body"],
+                turn_history=turn_history,
+                game_state=session_game_state
+            )
+            
+            # Send response to all players
+            response_address = f"{session_id}@{session['game_type']}.promptexecution.com"
+            for player in session.get('players', []):
+                send_response_email(
+                    to_address=player,
+                    from_address=response_address,
+                    subject=f"[Turn {game_state['current_turn']}] {session['game_type'].title()} Update",
+                    body=ai_response
+                )
+        else:
+            # Still waiting for other players - send acknowledgment
+            waiting_for = game_state.get('waiting_for', [])
+            waiting_names = [email.split('@')[0] for email in waiting_for]
+            
+            ack_message = f"""Thank you for your response! 
+
+I've received your turn and am now waiting for responses from: {', '.join(waiting_names)}
+
+Once everyone has responded, I'll continue the {session['game_type']} and send the next update to all players.
+
+Your {session['game_type']} continues...
+Session: {session_id}"""
+            
+            send_response_email(
+                to_address=player_email,
+                subject=f"Turn Received - Waiting for Others",
+                body=ack_message
+            )
         
-        ai_response = ai_agent.generate_response(
-            game_type=session["game_type"],
-            session_context=session_context,
-            player_input=email_content["body"],
-            turn_history=turn_history
-        )
-        
-        # 6. Update session status
-        storage.update_session(session_id, {
-            "status": "active",
-            "last_activity": email_content["timestamp"]
-        })
-        
-        # 7. Send AI response email
-        response_address = f"{session_id}@{session['game_type']}.promptexecution.com"
-        send_response_email(
-            to_address=player_email,
-            from_address=response_address,
-            subject=f"Re: {mail['commonHeaders']['subject']}",
-            body=ai_response
-        )
-        
-        logger.info(f"Successfully processed turn {current_turn} for session {session_id}")
+        logger.info(f"Successfully processed turn {game_state['current_turn']} for session {session_id}")
         
     except Exception as e:
-        logger.error(f"Error processing turn for session {session_id}: {str(e)}")
-        send_error_email(player_email, "Error processing your turn. Please try again.")
+        error_context = {
+            "session_id": session_id,
+            "player_email": player_email,
+            "turn_data": str(turn_data)[:200] if 'turn_data' in locals() else "unavailable"
+        }
+        logger.error(f"Error processing turn for session {session_id}: {str(e)}", exc_info=True, extra=error_context)
+        
+        send_error_email(
+            player_email, 
+            "Error processing your turn",
+            f"We encountered an error processing your turn for session {session_id}. Please try again in a few minutes."
+        )
         raise
 
 
@@ -266,8 +324,18 @@ def initialize_new_session(mail: Dict[str, Any], receipt: Dict[str, Any]) -> Non
         logger.info(f"Successfully initialized session {session_id} for {player_email}")
         
     except Exception as e:
-        logger.error(f"Error initializing session for {player_email}: {str(e)}")
-        send_error_email(player_email, "Error creating your session. Please try again.")
+        error_context = {
+            "player_email": player_email,
+            "game_type": game_type if 'game_type' in locals() else "unknown",
+            "recipients": recipients
+        }
+        logger.error(f"Error initializing session for {player_email}: {str(e)}", exc_info=True, extra=error_context)
+        
+        send_error_email(
+            player_email, 
+            "Error creating your session",
+            f"We encountered an error creating your {game_type if 'game_type' in locals() else ''} session. Please try again in a few minutes."
+        )
         raise
 
 
@@ -327,28 +395,41 @@ def extract_email_body(mail: Dict[str, Any]) -> str:
         return "[Unable to extract email content]"
 
 
-def send_error_email(to_address: str, error_message: str) -> None:
+def send_error_email(to_address: str, error_type: str, detailed_message: str = None) -> None:
     """
-    Send an error notification email.
+    Send an error notification email with structured error information.
     
     Args:
         to_address: Recipient email address
-        error_message: Error message to include
+        error_type: Type of error (used in subject)
+        detailed_message: Optional detailed error message
     """
-    subject = "GPT Therapy - Error Processing Your Request"
-    body = f"""
-Sorry, we encountered an error processing your request:
+    subject = f"GPT Therapy - {error_type}"
+    
+    body = f"""Hello,
 
-{error_message}
+We encountered an issue processing your request:
 
-Please try again or contact support if the problem persists.
+{detailed_message or error_type}
+
+**What to try:**
+1. Wait a few minutes and try again
+2. Check that your email contains your response
+3. Ensure you're replying to a valid session email
+
+If the problem persists, please contact support and include this email in your message.
+
+**Technical Details:**
+- Time: {json.dumps(None, default=str)}
+- Error Type: {error_type}
 
 Best regards,
-GPT Therapy Team
+GPT Therapy Support Team
 """
     
     try:
         send_response_email(to_address, subject, body)
+        logger.info(f"Error notification sent to {to_address} for: {error_type}")
     except Exception as e:
-        logger.error(f"Failed to send error email to {to_address}: {str(e)}")
+        logger.critical(f"CRITICAL: Failed to send error email to {to_address}: {str(e)}")
         # Don't re-raise since this is a fallback mechanism

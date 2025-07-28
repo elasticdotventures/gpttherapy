@@ -353,8 +353,13 @@ def extract_session_id_from_email(email_address: str) -> Optional[str]:
         local_part = email_address.split('@')[0]
         
         # Validate that it looks like a reasonable session ID
-        # Allow alphanumeric characters and hyphens (for UUIDs)
-        if local_part and (local_part.replace('-', '').isalnum()):
+        # Must be alphanumeric with optional hyphens, and not common words
+        invalid_addresses = {'general', 'admin', 'support', 'info', 'contact', 'hello', 'noreply'}
+        
+        if (local_part and 
+            local_part.lower() not in invalid_addresses and
+            (local_part.replace('-', '').isalnum()) and
+            len(local_part) >= 3):  # Session IDs should be at least 3 characters
             return local_part
         return None
     except (IndexError, AttributeError):

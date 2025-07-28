@@ -51,7 +51,8 @@ class AIAgent:
                          game_type: str,
                          session_context: Dict[str, Any],
                          player_input: str,
-                         turn_history: List[Dict[str, Any]] = None) -> str:
+                         turn_history: List[Dict[str, Any]] = None,
+                         game_state: Dict[str, Any] = None) -> str:
         """
         Generate an AI response based on game type and context.
         
@@ -60,14 +61,15 @@ class AIAgent:
             session_context: Current session state and metadata
             player_input: The player's latest input/email content
             turn_history: Previous turns in the session
+            game_state: Rich game state data (characters, world, narrative)
             
         Returns:
             Generated AI response text
         """
         try:
             # Build the prompt
-            system_prompt = self._build_system_prompt(game_type, session_context)
-            user_prompt = self._build_user_prompt(player_input, turn_history, session_context)
+            system_prompt = self._build_system_prompt(game_type, session_context, game_state)
+            user_prompt = self._build_user_prompt(player_input, turn_history, session_context, game_state)
             
             # Call Bedrock
             response = self._call_bedrock(system_prompt, user_prompt)
@@ -79,7 +81,7 @@ class AIAgent:
             logger.error(f"Error generating AI response: {str(e)}")
             return self._get_fallback_response(game_type)
     
-    def _build_system_prompt(self, game_type: str, session_context: Dict[str, Any]) -> str:
+    def _build_system_prompt(self, game_type: str, session_context: Dict[str, Any], game_state: Dict[str, Any] = None) -> str:
         """Build the system prompt with agent configuration."""
         agent_config = self.agent_configs.get(game_type, "")
         
@@ -88,14 +90,44 @@ class AIAgent:
             agent_config = "You are a helpful AI assistant facilitating a therapeutic conversation."
         
         # Add session-specific context
-        system_additions = f"""
+        context_parts = [f"""
 
 ## Current Session Context
 - Session ID: {session_context.get('session_id', 'unknown')}
 - Game Type: {game_type}
 - Turn Count: {session_context.get('turn_count', 0)}
 - Players: {', '.join(session_context.get('players', []))}
-- Status: {session_context.get('status', 'unknown')}
+- Status: {session_context.get('status', 'unknown')}"""]
+
+        # Add game state context if available
+        if game_state:
+            context_parts.append("\n## Game State Information")
+            
+            # Add character states for dungeon games
+            if game_type == 'dungeon' and 'character_states' in game_state:
+                context_parts.append("### Character States")
+                for player, char_state in game_state['character_states'].items():
+                    context_parts.append(f"- {char_state.get('name', 'Unknown')}: Level {char_state.get('level', 1)}, Health {char_state.get('health', 100)}, Location: {char_state.get('location', 'unknown')}")
+            
+            # Add world state for dungeon games
+            if game_type == 'dungeon' and 'world_state' in game_state and game_state['world_state']:
+                world = game_state['world_state']
+                context_parts.append(f"### World State")
+                context_parts.append(f"- Current Location: {world.get('current_location', 'unknown')}")
+                context_parts.append(f"- Time of Day: {world.get('time_of_day', 'unknown')}")
+                context_parts.append(f"- Weather: {world.get('weather', 'clear')}")
+            
+            # Add therapy state for therapy sessions
+            if game_type == 'intimacy' and 'therapy_state' in game_state and game_state['therapy_state']:
+                therapy = game_state['therapy_state']
+                context_parts.append(f"### Therapy Progress")
+                context_parts.append(f"- Current Phase: {therapy.get('current_phase', 'assessment')}")
+                if therapy.get('therapy_goals'):
+                    context_parts.append(f"- Goals: {', '.join(therapy['therapy_goals'])}")
+                if therapy.get('completed_exercises'):
+                    context_parts.append(f"- Completed Exercises: {len(therapy['completed_exercises'])}")
+
+        context_parts.append(f"""
 
 ## Response Guidelines
 - Keep responses concise and engaging (500-800 words max for email format)
@@ -103,14 +135,17 @@ class AIAgent:
 - Use the email response format specified in your agent configuration
 - Consider the turn-based nature - advance the story/therapy appropriately
 - Remember this is asynchronous email communication, not real-time chat
-"""
+""")
+
+        system_additions = "".join(context_parts)
         
         return agent_config + system_additions
     
     def _build_user_prompt(self, 
                           player_input: str, 
                           turn_history: List[Dict[str, Any]] = None,
-                          session_context: Dict[str, Any] = None) -> str:
+                          session_context: Dict[str, Any] = None,
+                          game_state: Dict[str, Any] = None) -> str:
         """Build the user prompt with current input and context."""
         prompt_parts = []
         

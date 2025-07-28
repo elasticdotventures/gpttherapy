@@ -9,6 +9,7 @@ on:
 env:
   AWS_REGION: ap-southeast-2
   LAMBDA_FUNCTION_NAME: gpttherapy-handler
+  TIMEOUT_FUNCTION_NAME: gpttherapy-timeout-processor
 
 jobs:
   test:
@@ -71,8 +72,14 @@ jobs:
         # Install dependencies to deployment directory
         uv pip install --target deployment -r pyproject.toml --no-deps
         
-        # Create zip file
+        # Create zip file for main handler
         cd deployment && zip -r ../lambda-deployment.zip . -x "*.pyc" "__pycache__/*"
+        
+        # Create separate zip for timeout processor
+        cd .. && mkdir -p timeout-deployment
+        cp -r src/* timeout-deployment/
+        uv pip install --target timeout-deployment -r pyproject.toml --no-deps
+        cd timeout-deployment && zip -r ../timeout-deployment.zip . -x "*.pyc" "__pycache__/*"
     
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -81,25 +88,48 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
     
-    - name: Deploy to Lambda
+    - name: Deploy main Lambda function
       run: |
         aws lambda update-function-code \
           --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
           --zip-file fileb://lambda-deployment.zip \
           --region ${{ env.AWS_REGION }}
     
-    - name: Wait for function update
+    - name: Deploy timeout processor Lambda function
+      run: |
+        aws lambda update-function-code \
+          --function-name ${{ env.TIMEOUT_FUNCTION_NAME }} \
+          --zip-file fileb://timeout-deployment.zip \
+          --region ${{ env.AWS_REGION }}
+    
+    - name: Wait for main function update
       run: |
         aws lambda wait function-updated \
           --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
           --region ${{ env.AWS_REGION }}
     
-    - name: Update function configuration if needed
+    - name: Wait for timeout function update
+      run: |
+        aws lambda wait function-updated \
+          --function-name ${{ env.TIMEOUT_FUNCTION_NAME }} \
+          --region ${{ env.AWS_REGION }}
+    
+    - name: Update main function configuration
       run: |
         aws lambda update-function-configuration \
           --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
           --runtime python3.12 \
           --handler lambda_function.lambda_handler \
+          --timeout 300 \
+          --region ${{ env.AWS_REGION }} \
+          || true
+    
+    - name: Update timeout function configuration
+      run: |
+        aws lambda update-function-configuration \
+          --function-name ${{ env.TIMEOUT_FUNCTION_NAME }} \
+          --runtime python3.12 \
+          --handler timeout_processor.lambda_handler \
           --timeout 300 \
           --region ${{ env.AWS_REGION }} \
           || true
