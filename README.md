@@ -154,3 +154,15 @@ You expect to do NLP-style preprocessing or postprocessing.
 You want to use AWS Lambda with fewer cold start concerns for simple I/O-bound tasks.
 
 I think dagster is a good fit for our MVP
+
+----
+Option B: AWS SES + Lambda (Full AWS-native)
+SES receives inbound email (must verify domain)
+
+Triggers Lambda directly or via S3 → Lambda pipeline
+
+Process as above
+
+⚠️ SES inbound is a bit fiddlier than Mailgun but no third-party required.
+
+
