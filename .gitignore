@@ -1,0 +1,4 @@
+context_portal/*
+alembic.ini
+alembic/*
+logs/**
