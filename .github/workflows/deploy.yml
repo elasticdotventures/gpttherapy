@@ -1,0 +1,105 @@
+name: Deploy to AWS Lambda
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: ap-southeast-2
+  LAMBDA_FUNCTION_NAME: gpttherapy-handler
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+    
+    - name: Set up Python 3.12
+      run: uv python install 3.12
+    
+    - name: Install dependencies
+      run: |
+        uv sync --dev
+    
+    - name: Run linting
+      run: |
+        uv run ruff check .
+        uv run black --check .
+    
+    - name: Run type checking
+      run: |
+        uv run mypy src/
+    
+    - name: Run tests
+      run: |
+        uv run pytest tests/ -v --cov=src/
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+    
+    - name: Set up Python 3.12
+      run: uv python install 3.12
+    
+    - name: Install dependencies
+      run: |
+        uv sync --no-dev
+    
+    - name: Create deployment package
+      run: |
+        mkdir -p deployment
+        
+        # Copy source code
+        cp -r src/* deployment/
+        
+        # Install dependencies to deployment directory
+        uv pip install --target deployment -r pyproject.toml --no-deps
+        
+        # Create zip file
+        cd deployment && zip -r ../lambda-deployment.zip . -x "*.pyc" "__pycache__/*"
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Deploy to Lambda
+      run: |
+        aws lambda update-function-code \
+          --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+          --zip-file fileb://lambda-deployment.zip \
+          --region ${{ env.AWS_REGION }}
+    
+    - name: Wait for function update
+      run: |
+        aws lambda wait function-updated \
+          --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+          --region ${{ env.AWS_REGION }}
+    
+    - name: Update function configuration if needed
+      run: |
+        aws lambda update-function-configuration \
+          --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+          --runtime python3.12 \
+          --handler lambda_function.lambda_handler \
+          --timeout 300 \
+          --region ${{ env.AWS_REGION }} \
+          || true

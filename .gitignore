@@ -82,3 +82,5 @@ lambda-deployment.zip
 context_portal/context.db
 logs/
 .envrc
+context_portal/*
+*~

@@ -1,5 +1,20 @@
 # gpttherapy
 
+
+    ☐ Create game/therapy agent configurations
+     ☐ Implement session state management (S3/DynamoDB)
+     ☐ Add Bedrock/LLM integration for AI responses
+     ☐ Create email templates (init, invite, response)
+     ☐ Implement turn-based game logic
+     ☐ Add session timeout and reminder system
+     ☐ Create game state persistence layer
+     ☐ Add comprehensive error handling and logging
+     ☐ Implement email parsing and validation
+     ☐ Add monitoring and observability
+
+
+---
+
 📄 Product Requirements Document: PromptExecution Mail-based Turn Engine
 ✅ Objective
 Design and implement a serverless, email-only, asynchronous communication system mediated by AI agents (narrators). It enables interactive storytelling or guided therapeutic dialogue via email, turn by turn. Primary use cases:
