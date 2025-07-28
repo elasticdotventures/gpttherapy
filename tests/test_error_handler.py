@@ -2,20 +2,9 @@
 Tests for error handling utilities.
 """
 
-import os
 import pytest
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
-
-# Set test environment
-os.environ.update({
-    'AWS_REGION': 'us-east-1',
-    'IS_TEST_ENV': 'true',
-    'SESSIONS_TABLE_NAME': 'test-sessions',
-    'TURNS_TABLE_NAME': 'test-turns',
-    'PLAYERS_TABLE_NAME': 'test-players',
-    'GAMEDATA_S3_BUCKET': 'test-bucket'
-})
 
 from src.error_handler import (
     ErrorType, ErrorContext, GPTTherapyError, SessionError, PlayerError, TurnError, StorageError,
@@ -128,10 +117,12 @@ class TestErrorLogging:
         assert error_id.startswith("err_")
         mock_logger.error.assert_called_once()
         
-        # Check log call arguments
+        # Check log call arguments - structured logging passes data as kwargs
         call_args = mock_logger.error.call_args
-        assert "GPTTherapyError: Test error" in call_args[0][0]
-        assert "extra" in call_args[1]
+        assert "Error: GPTTherapyError" in call_args[0][0]
+        # Check that structured data is passed as keyword arguments
+        assert 'error_id' in call_args[1]
+        assert 'error_type' in call_args[1]
     
     @patch('src.error_handler.logger')
     def test_log_error_with_context(self, mock_logger):
@@ -148,11 +139,12 @@ class TestErrorLogging:
         assert error_id.startswith("err_")
         mock_logger.error.assert_called_once()
         
-        # Check that context was included
+        # Check that context was included as keyword arguments
         call_args = mock_logger.error.call_args
-        log_data = call_args[1]['extra']
-        assert 'context' in log_data
-        assert log_data['context']['session_id'] == 'test-123'
+        assert 'session_id' in call_args[1]
+        assert call_args[1]['session_id'] == 'test-123'
+        assert 'player_email' in call_args[1]
+        assert call_args[1]['player_email'] == 'player@example.com'
     
     @patch('src.error_handler.logger')
     def test_log_error_different_levels(self, mock_logger):

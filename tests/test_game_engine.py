@@ -27,9 +27,33 @@ def mock_storage():
 
 
 @pytest.fixture
-def game_engine(mock_storage):
-    """Get GameEngine instance with mocked storage."""
-    return GameEngine(mock_storage)
+def mock_state_manager():
+    """Mock state machine manager."""
+    mock_manager = Mock()
+    mock_session_machine = Mock()
+    mock_turn_machine = Mock()
+    
+    # Set up basic state machine mocks
+    mock_session_machine.get_current_state.return_value = 'active'
+    mock_session_machine.is_active.return_value = True
+    mock_session_machine.state = 'active'
+    
+    mock_turn_machine.get_current_state.return_value = 'waiting_for_players'
+    mock_turn_machine.is_waiting_for_players.return_value = True
+    mock_turn_machine.can_start_processing.return_value = False
+    mock_turn_machine.get_waiting_players.return_value = ['player2@example.com']
+    mock_turn_machine.get_responded_players.return_value = ['player1@example.com']
+    
+    mock_manager.get_session_machine.return_value = mock_session_machine
+    mock_manager.get_turn_machine.return_value = mock_turn_machine
+    mock_manager.cleanup_completed_turns.return_value = None
+    
+    return mock_manager
+
+@pytest.fixture
+def game_engine(mock_storage, mock_state_manager):
+    """Get GameEngine instance with mocked storage and state manager."""
+    return GameEngine(mock_storage, mock_state_manager)
 
 
 @pytest.fixture
@@ -97,20 +121,17 @@ class TestGameEngine:
         with pytest.raises(ValueError, match="Player unknown@example.com not in session"):
             game_engine.process_player_turn('test-session-123', 'unknown@example.com', {})
     
-    def test_process_player_turn_incomplete(self, game_engine, mock_storage, sample_session, sample_turn_content):
+    def test_process_player_turn_incomplete(self, game_engine, mock_storage, mock_state_manager, sample_session, sample_turn_content):
         """Test processing turn when not all players have submitted."""
         mock_storage.get_session.return_value = sample_session
         mock_storage.save_turn.return_value = True
         mock_storage.update_session.return_value = True
         
-        # Only one turn submitted for current turn
-        mock_storage.get_session_turns.return_value = [
-            {
-                'turn_number': 3,
-                'player_email': 'player1@example.com',
-                'timestamp': '2023-01-01T12:00:00+00:00'
-            }
-        ]
+        # Set up state machine mocks for incomplete turn
+        session_machine = mock_state_manager.get_session_machine.return_value
+        turn_machine = mock_state_manager.get_turn_machine.return_value
+        turn_machine.can_start_processing.return_value = False  # Not all players responded
+        turn_machine.get_waiting_players.return_value = ['player2@example.com']
         
         result = game_engine.process_player_turn(
             'test-session-123', 
@@ -122,30 +143,29 @@ class TestGameEngine:
         assert result['current_turn'] == 3
         assert 'player2@example.com' in result['waiting_for']
         assert result['can_proceed'] is False
+        assert 'session_state' in result
+        assert 'turn_state' in result
         
         # Verify storage calls
         mock_storage.save_turn.assert_called_once()
         mock_storage.update_session.assert_called_once()
+        
+        # Verify state machine calls
+        turn_machine.add_player_response.assert_called_once_with('player1@example.com')
+        turn_machine.can_start_processing.assert_called()
     
-    def test_process_player_turn_complete(self, game_engine, mock_storage, sample_session, sample_turn_content):
+    def test_process_player_turn_complete(self, game_engine, mock_storage, mock_state_manager, sample_session, sample_turn_content):
         """Test processing turn when all players have submitted."""
         mock_storage.get_session.return_value = sample_session
         mock_storage.save_turn.return_value = True
         mock_storage.update_session.return_value = True
         
-        # Both players submitted for current turn
-        mock_storage.get_session_turns.return_value = [
-            {
-                'turn_number': 3,
-                'player_email': 'player1@example.com',
-                'timestamp': '2023-01-01T12:00:00+00:00'
-            },
-            {
-                'turn_number': 3,
-                'player_email': 'player2@example.com',
-                'timestamp': '2023-01-01T12:01:00+00:00'
-            }
-        ]
+        # Set up state machine mocks for complete turn
+        session_machine = mock_state_manager.get_session_machine.return_value
+        turn_machine = mock_state_manager.get_turn_machine.return_value
+        turn_machine.can_start_processing.return_value = True  # All players responded
+        turn_machine.is_waiting_for_players.return_value = True
+        turn_machine.get_current_state.return_value = 'completed'
         
         result = game_engine.process_player_turn(
             'test-session-123',
@@ -158,6 +178,13 @@ class TestGameEngine:
         assert result['waiting_for'] == []
         assert result['can_proceed'] is True
         assert result['next_state']['turn_advancement'] is True
+        assert 'session_state' in result
+        assert 'turn_state' in result
+        
+        # Verify state machine transitions
+        turn_machine.add_player_response.assert_called_once_with('player2@example.com')
+        turn_machine.start_processing.assert_called_once()
+        turn_machine.complete.assert_called_once()
     
     def test_check_turn_completion_intimacy(self, game_engine, mock_storage, sample_intimacy_session):
         """Test turn completion logic for intimacy/therapy sessions."""
@@ -207,20 +234,22 @@ class TestGameEngine:
         assert update_data['next_turn'] == 4
         assert update_data['status'] == SessionState.ACTIVE.value
     
-    def test_update_waiting_state(self, game_engine, mock_storage, sample_session):
+    def test_update_waiting_state(self, game_engine, mock_storage, mock_state_manager, sample_session):
         """Test updating session while waiting for players."""
-        # Mock that only player1 has submitted for turn 3
-        mock_storage.get_session_turns.return_value = [
-            {
-                'turn_number': 3,
-                'player_email': 'player1@example.com'
-            }
-        ]
+        # Set up state machine mocks
+        session_machine = mock_state_manager.get_session_machine.return_value
+        session_machine.is_active.return_value = True
+        session_machine.get_current_state.return_value = 'active'
+        
+        turn_machine = mock_state_manager.get_turn_machine.return_value
+        turn_machine.get_waiting_players.return_value = ['player2@example.com']
+        
         mock_storage.update_session.return_value = True
         
         result = game_engine._update_waiting_state('test-session-123', sample_session, 3)
         
-        assert result['status'] == SessionState.WAITING_FOR_PLAYERS.value
+        # In new behavior, active sessions stay active while waiting for turn responses
+        assert result['status'] == SessionState.ACTIVE.value
         assert result['current_turn'] == 3
         assert 'player2@example.com' in result['waiting_for']
         assert result['turn_advancement'] is False
@@ -247,10 +276,16 @@ class TestGameEngine:
         assert result[0]['session_id'] == 'timeout-session-1'
         assert result[0]['timeout_hours'] == 24
     
-    def test_handle_turn_timeout_therapy(self, game_engine, mock_storage, sample_intimacy_session):
+    def test_handle_turn_timeout_therapy(self, game_engine, mock_storage, mock_state_manager, sample_intimacy_session):
         """Test handling timeout for therapy session."""
         mock_storage.get_session.return_value = sample_intimacy_session
         mock_storage.update_session.return_value = True
+        
+        # Set up state machine mocks
+        session_machine = mock_state_manager.get_session_machine.return_value
+        session_machine.get_current_state.return_value = 'paused'
+        
+        turn_machine = mock_state_manager.get_turn_machine.return_value
         
         result = game_engine.handle_turn_timeout('therapy-session-456')
         
@@ -258,10 +293,14 @@ class TestGameEngine:
         assert result['reason'] == 'turn_timeout'
         assert result['reminder_needed'] is True
         
+        # Verify state machine was used to pause
+        session_machine.pause.assert_called_once()
+        turn_machine.timeout.assert_called_once()
+        
         # Check session was paused
         update_call = mock_storage.update_session.call_args[0]
         update_data = update_call[1]
-        assert update_data['status'] == SessionState.PAUSED.value
+        assert update_data['status'] == 'paused'  # From state machine mock
         assert update_data['pause_reason'] == 'turn_timeout'
     
     def test_handle_turn_timeout_adventure_continue(self, game_engine, mock_storage):
@@ -285,27 +324,43 @@ class TestGameEngine:
         assert result['current_turn'] == 5
         assert result['next_turn'] == 6
     
-    def test_resume_session(self, game_engine, mock_storage):
+    def test_resume_session(self, game_engine, mock_storage, mock_state_manager):
         """Test resuming a paused session."""
         paused_session = {
             'session_id': 'paused-123',
             'status': SessionState.PAUSED.value,
-            'game_type': 'dungeon'
+            'game_type': 'dungeon',
+            'players': ['player@example.com']
         }
         
         mock_storage.get_session.return_value = paused_session
         mock_storage.update_session.return_value = True
         
+        # Set up state machine mocks
+        session_machine = mock_state_manager.get_session_machine.return_value
+        session_machine.can_resume.return_value = True
+        session_machine.resume.return_value = None
+        
+        # Mock the state check and transition
+        def mock_get_current_state():
+            if session_machine.resume.called:
+                return 'active'
+            return 'paused'
+        session_machine.get_current_state.side_effect = mock_get_current_state
+        
         result = game_engine.resume_session('paused-123', 'player@example.com')
         
         assert result['action'] == 'resumed'
         assert result['resumed_by'] == 'player@example.com'
-        assert result['status'] == SessionState.ACTIVE.value
+        assert result['status'] == 'active'  # From state machine mock
+        
+        # Verify state machine methods were called
+        session_machine.can_resume.assert_called_once()
+        session_machine.resume.assert_called_once()
         
         # Check session was updated
         update_call = mock_storage.update_session.call_args[0]
         update_data = update_call[1]
-        assert update_data['status'] == SessionState.ACTIVE.value
         assert update_data['resumed_by'] == 'player@example.com'
     
     def test_resume_session_not_paused(self, game_engine, mock_storage, sample_session):

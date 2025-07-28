@@ -4,21 +4,10 @@ Uses test data from JSON files and flags test records.
 """
 
 import json
-import os
-import uuid
+from nanoid import generate
 from unittest.mock import Mock, patch, MagicMock
 import pytest
 from botocore.exceptions import ClientError
-
-# Set test environment before importing storage
-os.environ.update({
-    'AWS_REGION': 'us-east-1',
-    'IS_TEST_ENV': 'true',
-    'SESSIONS_TABLE_NAME': 'test-gpttherapy-sessions',
-    'TURNS_TABLE_NAME': 'test-gpttherapy-turns', 
-    'PLAYERS_TABLE_NAME': 'test-gpttherapy-players',
-    'GAMEDATA_S3_BUCKET': 'test-gpttherapy-gamedata'
-})
 
 from src.storage import StorageManager, extract_session_id_from_email
 
@@ -104,7 +93,7 @@ class TestStorageManager:
         )
         
         assert session_id is not None
-        assert len(session_id) == 36  # UUID length
+        assert len(session_id) == 12  # Nanoid length
         mock_table.put_item.assert_called_once()
         
         # Check the session item structure
@@ -328,11 +317,11 @@ class TestUtilityFunctions:
         session_id = extract_session_id_from_email(email)
         assert session_id == "abc123"
     
-    def test_extract_session_id_uuid(self):
-        """Test extracting UUID session ID."""
-        email = "550e8400-e29b-41d4-a716-446655440000@intimacy.promptexecution.com"
+    def test_extract_session_id_nanoid(self):
+        """Test extracting nanoid session ID."""
+        email = "k4NzWcr47GBd@intimacy.promptexecution.com"
         session_id = extract_session_id_from_email(email)
-        assert session_id == "550e8400-e29b-41d4-a716-446655440000"
+        assert session_id == "k4NzWcr47GBd"
     
     def test_extract_session_id_invalid(self):
         """Test extracting from invalid email format."""
