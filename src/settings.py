@@ -32,7 +32,7 @@ class Settings:
 
     # Environment Detection
     IS_TEST_ENV: bool = config("IS_TEST_ENV", default=False, cast=bool)
-    IS_LAMBDA_ENV: bool = config("AWS_LAMBDA_FUNCTION_NAME", default="", cast=bool)
+    IS_LAMBDA_ENV: bool = bool(config("AWS_LAMBDA_FUNCTION_NAME", default=""))
 
     # Lambda-specific Configuration
     AWS_LAMBDA_FUNCTION_NAME: str = config("AWS_LAMBDA_FUNCTION_NAME", default="")
@@ -120,7 +120,7 @@ class Settings:
             ]
 
             for name, value in required_settings:
-                if not value or value.startswith("gpttherapy-"):  # Default values
+                if not value:  # Only check if value is empty/None
                     errors.append(f"{name} must be set in production environment")
 
         # Validate numeric ranges

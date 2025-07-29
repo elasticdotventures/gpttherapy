@@ -144,22 +144,25 @@ def extract_session_info(recipients: list[str]) -> dict[str, Any] | None:
         recipients: List of recipient email addresses
 
     Returns:
-        Session info dictionary or None if no session found
+        Session info dictionary or None if this is a new session request
     """
     for recipient in recipients:
         session_id = extract_session_id_from_email(recipient)
         if session_id:
-            # Extract game type from domain
-            domain = recipient.split("@", 1)[1]
-            game_type = domain.split(".")[0]  # Extract game type from subdomain
+            # Extract game type from the prefix part (before the +)
+            local_part = recipient.split("@")[0]
+            if "+" in local_part:
+                game_type = local_part.split("+")[0]
+                domain = recipient.split("@", 1)[1]
 
-            return {
-                "session_id": session_id,
-                "game_type": game_type,
-                "domain": domain,
-                "recipient": recipient,
-            }
+                return {
+                    "session_id": session_id,
+                    "game_type": game_type,
+                    "domain": domain,
+                    "recipient": recipient,
+                }
 
+    # If no session ID found, this is a new session request
     return None
 
 
@@ -237,9 +240,9 @@ def process_session_turn(
                 game_state=session_game_state,
             )
 
-            # Send response to all players
+            # Send response to all players using prefix+sessionid pattern
             response_address = (
-                f"{session_id}@{session['game_type']}.aws.promptexecution.com"
+                f"{session['game_type']}+{session_id}@aws.promptexecution.com"
             )
             for player in session.get("players", []):
                 send_response_email(
@@ -308,15 +311,19 @@ def initialize_new_session(mail: dict[str, Any], receipt: dict[str, Any]) -> Non
     logger.info(f"Initializing new session for {player_email}")
 
     try:
-        # 1. Determine game type from recipient domain
-        game_type = "dungeon"  # Default, will be improved
+        # 1. Determine game type from recipient email address
+        game_type = None
         for recipient in recipients:
             if "@" in recipient:
-                domain = recipient.split("@", 1)[1]
-                potential_game_type = domain.split(".")[0]
-                if potential_game_type in ["dungeon", "intimacy"]:
-                    game_type = potential_game_type
+                local_part = recipient.split("@")[0]
+                # Check if this is a valid game type (dynamically from games directory)
+                if _is_valid_game_type_for_new_session(local_part):
+                    game_type = local_part
                     break
+
+        if not game_type:
+            logger.error(f"Could not determine game type from recipients: {recipients}")
+            game_type = "dungeon"  # Fallback
 
         # 2. Create new session
         session_data = {
@@ -339,8 +346,8 @@ def initialize_new_session(mail: dict[str, Any], receipt: dict[str, Any]) -> Non
             game_type=game_type, player_email=player_email, session_id=session_id
         )
 
-        # 5. Send initialization email
-        response_address = f"{session_id}@{game_type}.aws.promptexecution.com"
+        # 5. Send initialization email using prefix+sessionid pattern
+        response_address = f"{game_type}+{session_id}@aws.promptexecution.com"
 
         send_response_email(
             to_address=player_email,
@@ -470,3 +477,15 @@ GPT Therapy Support Team
             f"CRITICAL: Failed to send error email to {to_address}: {str(e)}"
         )
         # Don't re-raise since this is a fallback mechanism
+
+
+def _is_valid_game_type_for_new_session(potential_game_type: str) -> bool:
+    """Check if a potential game type is valid for new session creation."""
+    try:
+        from pathlib import Path
+
+        games_dir = Path(__file__).parent.parent / "games"
+        game_dir = games_dir / potential_game_type
+        return game_dir.exists() and game_dir.is_dir()
+    except Exception:
+        return False

@@ -78,11 +78,7 @@ def copy_source_code(temp_dir: Path, project_root: Path) -> None:
 
     if src_dir.exists():
         shutil.copytree(src_dir, dest_dir)
-
-        # Fix relative imports for Lambda deployment
-        print("Converting relative imports to absolute imports for Lambda...")
-        for py_file in dest_dir.glob("*.py"):
-            fix_imports_for_lambda(py_file)
+        # Note: No import rewriting needed - using PYTHONPATH in Lambda environment
     else:
         raise FileNotFoundError(f"Source directory not found: {src_dir}")
 
@@ -114,7 +110,7 @@ def copy_game_configs(temp_dir: Path, project_root: Path) -> None:
         shutil.copytree(games_dir, dest_dir)
 
 
-def create_lambda_zip(temp_dir: Path, output_file: Path) -> None:
+def create_lambda_zip(temp_dir: Path, output_file: Path, project_root: Path) -> None:
     """Create ZIP file for Lambda deployment."""
     print(f"Creating deployment package: {output_file}")
 
@@ -131,7 +127,12 @@ def create_lambda_zip(temp_dir: Path, output_file: Path) -> None:
                         arcname = file_path.relative_to(packages_dir)
                         zf.write(file_path, arcname)
 
-        # Add source code
+        # Add Lambda entry point stub (root level)
+        stub_file = project_root / "lambda_function.py"
+        if stub_file.exists():
+            zf.write(stub_file, "lambda_function.py")
+
+        # Add source code (keep src/ structure)
         src_dir = temp_dir / "src"
         if src_dir.exists():
             for root, dirs, files in os.walk(src_dir):
@@ -139,7 +140,7 @@ def create_lambda_zip(temp_dir: Path, output_file: Path) -> None:
                 for file in files:
                     if not file.endswith(".pyc"):
                         file_path = Path(root) / file
-                        arcname = file_path.relative_to(src_dir)
+                        arcname = file_path.relative_to(temp_dir)
                         zf.write(file_path, arcname)
 
         # Add game configurations
@@ -207,7 +208,7 @@ def main():
             copy_game_configs(temp_dir, project_root)
 
             # Create ZIP file
-            create_lambda_zip(temp_dir, output_file)
+            create_lambda_zip(temp_dir, output_file, project_root)
 
             # Show results
             package_size = get_package_size(output_file)

@@ -446,32 +446,53 @@ def get_storage_manager() -> StorageManager:
 
 
 def extract_session_id_from_email(email_address: str) -> str | None:
-    """Extract session ID from email address like '123@dungeon.promptexecution.com'."""
+    """
+    Extract session ID from email address using prefix+sessionid pattern.
+
+    Expected patterns:
+    - New session: 'dungeon@aws.promptexecution.com' -> None (no session ID)
+    - Existing session: 'dungeon+abc123@aws.promptexecution.com' -> 'abc123'
+    """
     try:
         if not email_address or "@" not in email_address:
             return None
 
         local_part = email_address.split("@")[0]
 
-        # Validate that it looks like a reasonable session ID
-        # Must be alphanumeric with optional hyphens, and not common words
-        invalid_addresses = {
-            "general",
-            "admin",
-            "support",
-            "info",
-            "contact",
-            "hello",
-            "noreply",
-        }
+        # Check if this follows the prefix+sessionid pattern
+        if "+" in local_part:
+            game_type, session_id = local_part.split("+", 1)
 
-        if (
-            local_part
-            and local_part.lower() not in invalid_addresses
-            and (local_part.replace("-", "").isalnum())
-            and len(local_part) >= 3
-        ):  # Session IDs should be at least 3 characters
-            return local_part
+            # Validate the game type exists (dynamically check games directory)
+            if _is_valid_game_type(game_type) and _is_valid_session_id(session_id):
+                return session_id
+
+        # If no "+" found, this is either a new session request or invalid
+        # New session requests (like "dungeon@...") should return None
         return None
-    except (IndexError, AttributeError):
+
+    except (IndexError, AttributeError, ValueError):
         return None
+
+
+def _is_valid_game_type(game_type: str) -> bool:
+    """Check if a game type exists by looking in the games directory."""
+    try:
+        from pathlib import Path
+
+        games_dir = Path(__file__).parent.parent / "games"
+        game_dir = games_dir / game_type
+        return game_dir.exists() and game_dir.is_dir()
+    except Exception:
+        return False
+
+
+def _is_valid_session_id(session_id: str) -> bool:
+    """Validate that a session ID looks reasonable."""
+    return (
+        session_id
+        and len(session_id) >= 3
+        and session_id.replace("-", "").isalnum()
+        and session_id.lower()
+        not in {"general", "admin", "support", "info", "contact", "hello", "noreply"}
+    )

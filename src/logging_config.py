@@ -116,7 +116,9 @@ def add_global_context(**kwargs: Any) -> None:
     Args:
         **kwargs: Key-value pairs to add to global context
     """
-    structlog.configure(context_class=dict, **kwargs)
+    # Store global context in structlog's context
+    # This gets applied to all loggers created after this point
+    structlog.contextvars.bind_contextvars(**kwargs)
 
 
 # Context managers for temporary log context

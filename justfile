@@ -193,6 +193,23 @@ deploy-lambdas: build-lambda
     -aws lambda update-function-code --function-name gpttherapy-timeout-processor --zip-file fileb://dist/gpttherapy-lambda.zip --region ap-southeast-2
     @echo "✅ Main Lambda functions deployed successfully"
 
+# Test Lambda function with simulated SES email event
+test-lambda:
+    @echo "🧪 Testing Lambda function with simulated email..."
+    @echo '{"Records":[{"eventSource":"aws:ses","ses":{"mail":{"messageId":"test-$(date +%s)","timestamp":"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)","commonHeaders":{"from":["test@gmail.com"],"to":["dungeon@aws.promptexecution.com"],"subject":"Test Email for GPT Therapy"}},"receipt":{"recipients":["dungeon@aws.promptexecution.com"],"timestamp":"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"}}}]}' > /tmp/test-ses-event.json
+    @echo "📤 Invoking Lambda function..."
+    aws lambda invoke \
+        --function-name gpttherapy-handler \
+        --cli-binary-format raw-in-base64-out \
+        --payload file:///tmp/test-ses-event.json \
+        --region ap-southeast-2 \
+        /tmp/lambda-test-response.json
+    @echo "📥 Lambda response:"
+    @cat /tmp/lambda-test-response.json | jq '.'
+    @echo "\n📋 Recent logs:"
+    @just logs | head -10 || echo "No recent logs found"
+    @echo "✅ Lambda test completed"
+
 # Compress project for distribution/backup
 compress FORMAT="tar.gz":
     @echo "🗜️  Compressing project ({{FORMAT}})..."
