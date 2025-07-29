@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 GPTTherapy is a serverless, email-only, asynchronous communication system mediated by AI agents (narrators). It enables interactive storytelling or guided therapeutic dialogue via email, turn by turn. The system supports:
 
-- 🧙‍♂️ Narrative Role-Playing Games (e.g., dungeon.post)
-- 🫂 Couples or group therapy (e.g., intimacy.post)
+- 🧙‍♂️ Narrative Role-Playing Games (e.g., dungeon@aws.promptexecution.com)
+- 🫂 Couples or group therapy (e.g., intimacy@aws.promptexecution.com)
 
 ## Architecture
 
@@ -127,7 +127,7 @@ Each game type has:
 - `missions/`: Scenario-specific prompts and configurations
 
 ### Email Flow
-1. User emails `game@domain.post` (e.g., `dungeon@dungeon.post`)
+1. User emails `game@aws.promptexecution.com` (e.g., `dungeon@aws.promptexecution.com`)
 2. System sends `init-template.md` as form-style response
 3. User fills and replies to form
 4. System sends `invite-template.md` with session ID for multiplayer
@@ -226,7 +226,7 @@ just setup-github-secrets  # Configure GitHub Actions secrets
 - **Task Runner**: Use `just` commands for all common operations
 - **Security**: GitHub Actions credentials automatically provisioned with minimal IAM permissions
 - **Deployment**: Fully automated via GitHub Actions on main branch push
-- **Email routing**: Uses session ID encoding in addresses (e.g., `123@dungeon.promptexecution.com`)
+- **Email routing**: Uses session ID encoding in addresses (e.g., `123@dungeon.aws.promptexecution.com`)
 - **State management**: All game state persists between turns for narrative continuity
 - **Package management**: Use `uv` for all Python dependencies
 - **Quality gates**: Tests, linting, and type checking must pass before deployment

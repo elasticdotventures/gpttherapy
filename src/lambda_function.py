@@ -247,7 +247,7 @@ def process_session_turn(
 
             # Send response to all players
             response_address = (
-                f"{session_id}@{session['game_type']}.promptexecution.com"
+                f"{session_id}@{session['game_type']}.aws.promptexecution.com"
             )
             for player in session.get("players", []):
                 send_response_email(
@@ -348,7 +348,7 @@ def initialize_new_session(mail: dict[str, Any], receipt: dict[str, Any]) -> Non
         )
 
         # 5. Send initialization email
-        response_address = f"{session_id}@{game_type}.promptexecution.com"
+        response_address = f"{session_id}@{game_type}.aws.promptexecution.com"
 
         send_response_email(
             to_address=player_email,
@@ -392,7 +392,7 @@ def send_response_email(
         from_address: Optional sender address (defaults to noreply)
     """
     if not from_address:
-        from_address = "noreply@promptexecution.com"
+        from_address = "noreply@aws.promptexecution.com"
 
     try:
         response = get_ses_client().send_email(

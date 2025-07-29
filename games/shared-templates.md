@@ -24,8 +24,8 @@ I couldn't find the session you're trying to access. This can happen for a few r
 
 **Starting Fresh:**
 If you'd like to begin a new session, simply email:
-- dungeon@promptexecution.com for adventures
-- intimacy@promptexecution.com for couples therapy
+- dungeon@aws.promptexecution.com for adventures
+- intimacy@aws.promptexecution.com for couples therapy
 
 I'm here to help get you back into your session!
 
@@ -177,7 +177,7 @@ Congratulations! You've completed your {game_type} session.
 {completion_statistics}
 
 ## What's Next?
-- **Start New Session**: Email {game_type}@promptexecution.com
+- **Start New Session**: Email {game_type}@aws.promptexecution.com
 - **Different Experience**: Try our other game types
 - **Share Your Story**: Tell friends about your experience
 
