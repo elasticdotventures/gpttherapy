@@ -7,13 +7,10 @@ import logging
 from enum import Enum
 from typing import Any
 
-from datetime_utils import timestamps
 from transitions import Machine
 
-try:
-    from storage import StorageManager
-except ImportError:
-    from storage import StorageManager
+from .datetime_utils import timestamps
+from .storage import StorageManager
 
 logger = logging.getLogger(__name__)
 

@@ -162,7 +162,7 @@ def configure_lambda_logging() -> None:
     Configure structured logging specifically for AWS Lambda environment.
     Enables JSON logging and sets appropriate log levels.
     """
-    from settings import settings
+    from .settings import settings
 
     configure_structlog(
         log_level=settings.LOG_LEVEL,
@@ -185,7 +185,7 @@ def configure_dev_logging() -> None:
     Configure structured logging for development environment.
     Enables colored console output and debug logging.
     """
-    from settings import settings
+    from .settings import settings
 
     # Use DEBUG level for development, unless explicitly set
     log_level = settings.LOG_LEVEL if settings.LOG_LEVEL != "INFO" else "DEBUG"
@@ -202,7 +202,7 @@ def auto_configure() -> None:
     """
     Automatically configure logging based on environment variables.
     """
-    from settings import settings
+    from .settings import settings
 
     if settings.IS_LAMBDA_ENV:
         configure_lambda_logging()

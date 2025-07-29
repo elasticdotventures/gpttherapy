@@ -18,7 +18,7 @@ class AIAgent:
     """Manages AI agent interactions using AWS Bedrock."""
 
     def __init__(self) -> None:
-        from settings import settings
+        from .settings import settings
 
         self.aws_region = settings.AWS_REGION
         self.bedrock_client = boto3.client(

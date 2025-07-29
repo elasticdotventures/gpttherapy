@@ -9,7 +9,6 @@ import re
 from datetime import datetime
 from typing import Any
 
-from datetime_utils import datetime_to_instant
 from email_validator import EmailNotValidError, validate_email
 from pydantic import (
     BaseModel,
@@ -19,7 +18,9 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from settings import settings
+
+from .datetime_utils import datetime_to_instant
+from .settings import settings
 
 
 class EmailAttachment(BaseModel):
@@ -273,7 +274,7 @@ class ParsedEmail(BaseModel):
 
     def extract_session_id(self) -> str | None:
         """Extract session ID from email addressing."""
-        from storage import extract_session_id_from_email
+        from .storage import extract_session_id_from_email
 
         # Check all recipient addresses for session IDs
         for addr in self.to_addresses:
