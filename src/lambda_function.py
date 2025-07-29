@@ -9,15 +9,14 @@ import json
 from typing import Any
 
 import boto3
-
-# Force absolute imports for Lambda deployment
-from ai_agent import AIAgent
 from botocore.exceptions import ClientError
-from game_engine import GameEngine
-from game_state import GameStateManager
-from logging_config import get_logger
-from settings import settings
-from storage import StorageManager, extract_session_id_from_email
+
+from .ai_agent import AIAgent
+from .game_engine import GameEngine
+from .game_state import GameStateManager
+from .logging_config import get_logger
+from .settings import settings
+from .storage import StorageManager, extract_session_id_from_email
 
 # Configure structured logging
 logger = get_logger(__name__)

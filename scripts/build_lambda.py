@@ -70,7 +70,7 @@ def install_dependencies(temp_dir: Path, project_root: Path) -> None:
 
 
 def copy_source_code(temp_dir: Path, project_root: Path) -> None:
-    """Copy source code to temporary directory."""
+    """Copy source code to temporary directory and fix imports."""
     print("Copying source code...")
 
     src_dir = project_root / "src"
@@ -78,8 +78,30 @@ def copy_source_code(temp_dir: Path, project_root: Path) -> None:
 
     if src_dir.exists():
         shutil.copytree(src_dir, dest_dir)
+
+        # Fix relative imports for Lambda deployment
+        print("Converting relative imports to absolute imports for Lambda...")
+        for py_file in dest_dir.glob("*.py"):
+            fix_imports_for_lambda(py_file)
     else:
         raise FileNotFoundError(f"Source directory not found: {src_dir}")
+
+
+def fix_imports_for_lambda(py_file: Path) -> None:
+    """Convert relative imports to absolute imports for Lambda deployment."""
+    content = py_file.read_text()
+
+    # Convert relative imports like "from .module import" to "from module import"
+    import re
+
+    content = re.sub(
+        r"^from \.([a-zA-Z_][a-zA-Z0-9_]*) import",
+        r"from \1 import",
+        content,
+        flags=re.MULTILINE,
+    )
+
+    py_file.write_text(content)
 
 
 def copy_game_configs(temp_dir: Path, project_root: Path) -> None:
