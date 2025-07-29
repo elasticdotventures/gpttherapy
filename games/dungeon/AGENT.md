@@ -41,7 +41,7 @@ Subject: [Adventure] Turn X: [Scene Title]
 
 ## Your Options
 1. [Action option 1]
-2. [Action option 2] 
+2. [Action option 2]
 3. [Action option 3]
 4. [Custom action - describe what you want to do]
 

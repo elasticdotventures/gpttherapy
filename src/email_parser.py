@@ -9,29 +9,34 @@ import email
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-from .datetime_utils import parse_email_date, utc_now_iso, datetime_to_instant
+from typing import Any
 
 from pydantic import ValidationError
-from email_validator import EmailNotValidError
+
+from .datetime_utils import datetime_to_instant, parse_email_date
 
 try:
-    from .error_handler import ErrorType, GPTTherapyError
     from .email_models import (
-        ParsedEmail, EmailAttachment, EmailContent, EmailProcessingResult,
-        GameEmailSchema, TherapyEmailSchema
+        EmailAttachment,
+        EmailContent,
+        EmailProcessingResult,
+        GameEmailSchema,
+        ParsedEmail,
+        TherapyEmailSchema,
     )
+    from .error_handler import ErrorType, GPTTherapyError
     from .logging_config import get_logger
-    from .settings import settings
 except ImportError:
-    from error_handler import ErrorType, GPTTherapyError
     from email_models import (
-        ParsedEmail, EmailAttachment, EmailContent, EmailProcessingResult,
-        GameEmailSchema, TherapyEmailSchema
+        EmailAttachment,
+        EmailContent,
+        EmailProcessingResult,
+        GameEmailSchema,
+        ParsedEmail,
+        TherapyEmailSchema,
     )
+    from error_handler import ErrorType, GPTTherapyError
     from logging_config import get_logger
-    from settings import settings
 
 logger = get_logger(__name__)
 
@@ -42,7 +47,12 @@ logger = get_logger(__name__)
 class EmailValidationError(GPTTherapyError):
     """Email validation specific errors."""
 
-    def __init__(self, message: str, email_data: Dict[str, Any] = None, validation_errors: List[str] = None):
+    def __init__(
+        self,
+        message: str,
+        email_data: dict[str, Any] | None = None,
+        validation_errors: list[str] | None = None,
+    ):
         super().__init__(message, ErrorType.VALIDATION_ERROR)
         self.email_data = email_data
         self.validation_errors = validation_errors or []
@@ -51,42 +61,55 @@ class EmailValidationError(GPTTherapyError):
 class EmailParser:
     """Improved email parsing using Pydantic models and proper validation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Reply detection patterns
-        self.reply_indicators = [
-            r"^re:\s*", r"^fwd?:\s*", r"^fw:\s*", r"^\[.*\]"
-        ]
+        self.reply_indicators = [r"^re:\s*", r"^fwd?:\s*", r"^fw:\s*", r"^\[.*\]"]
 
-        # Automated email patterns  
+        # Automated email patterns
         self.automated_patterns = [
-            r"noreply@", r"no-reply@", r"donotreply@",
-            r"automated@", r"system@", r"daemon@", r"mailer-daemon@"
+            r"noreply@",
+            r"no-reply@",
+            r"donotreply@",
+            r"automated@",
+            r"system@",
+            r"daemon@",
+            r"mailer-daemon@",
         ]
 
         # Content extraction patterns
         self.quote_patterns = [
-            r"^>.*", r"^On .* wrote:", r"^From:.*",
-            r"-----Original Message-----", r"_{10,}"
+            r"^>.*",
+            r"^On .* wrote:",
+            r"^From:.*",
+            r"-----Original Message-----",
+            r"_{10,}",
         ]
-        
+
         # Game action keywords
         self.action_keywords = {
-            'movement': ['go', 'move', 'walk', 'run', 'travel', 'head'],
-            'combat': ['attack', 'fight', 'defend', 'block', 'strike'],
-            'magic': ['cast', 'spell', 'enchant', 'summon', 'invoke'],
-            'interaction': ['talk', 'speak', 'say', 'ask', 'tell'],
-            'investigation': ['search', 'examine', 'look', 'inspect', 'investigate'],
-            'manipulation': ['take', 'grab', 'pick', 'use', 'open', 'close']
-        }
-        
-        # Emotional indicators for therapy
-        self.emotion_keywords = {
-            'positive': ['happy', 'excited', 'grateful', 'hopeful', 'calm', 'peaceful'],
-            'negative': ['sad', 'angry', 'frustrated', 'worried', 'anxious', 'stressed'],
-            'neutral': ['confused', 'curious', 'uncertain', 'thoughtful']
+            "movement": ["go", "move", "walk", "run", "travel", "head"],
+            "combat": ["attack", "fight", "defend", "block", "strike"],
+            "magic": ["cast", "spell", "enchant", "summon", "invoke"],
+            "interaction": ["talk", "speak", "say", "ask", "tell"],
+            "investigation": ["search", "examine", "look", "inspect", "investigate"],
+            "manipulation": ["take", "grab", "pick", "use", "open", "close"],
         }
 
-    def parse_ses_email(self, ses_record: Dict[str, Any]) -> EmailProcessingResult:
+        # Emotional indicators for therapy
+        self.emotion_keywords = {
+            "positive": ["happy", "excited", "grateful", "hopeful", "calm", "peaceful"],
+            "negative": [
+                "sad",
+                "angry",
+                "frustrated",
+                "worried",
+                "anxious",
+                "stressed",
+            ],
+            "neutral": ["confused", "curious", "uncertain", "thoughtful"],
+        }
+
+    def parse_ses_email(self, ses_record: dict[str, Any]) -> EmailProcessingResult:
         """
         Parse an email from SES record format using Pydantic validation.
 
@@ -97,11 +120,8 @@ class EmailParser:
             EmailProcessingResult with parsed and validated email
         """
         start_time = time.time() * 1000
-        result = EmailProcessingResult(
-            success=False,
-            processing_time_ms=0
-        )
-        
+        result = EmailProcessingResult(success=False, processing_time_ms=0)
+
         try:
             # Validate SES record structure
             if "ses" not in ses_record:
@@ -115,51 +135,59 @@ class EmailParser:
 
             # Extract email data with better error handling
             email_data = self._extract_ses_email_data(mail_data)
-            
+
             # Parse timestamp properly
-            if 'timestamp' in mail_data:
+            if "timestamp" in mail_data:
                 try:
                     # Use proper datetime parsing
-                    parsed_instant = parse_email_date(mail_data['timestamp'])
-                    email_data['timestamp'] = parsed_instant.py_datetime()
+                    parsed_instant = parse_email_date(mail_data["timestamp"])
+                    email_data["timestamp"] = parsed_instant.py_datetime()
                 except (ValueError, AttributeError):
-                    email_data['timestamp'] = datetime_to_instant(datetime.now()).py_datetime()
+                    email_data["timestamp"] = datetime_to_instant(
+                        datetime.now()
+                    ).py_datetime()
             else:
-                email_data['timestamp'] = datetime_to_instant(datetime.now()).py_datetime()
-            
+                email_data["timestamp"] = datetime_to_instant(
+                    datetime.now()
+                ).py_datetime()
+
             # Create and validate ParsedEmail using Pydantic
             try:
                 parsed_email = ParsedEmail.model_validate(email_data)
-                
+
                 # Calculate spam score and extract content
                 parsed_email.calculate_spam_score()
-                parsed_email.extracted_content = self._extract_email_content_analysis(parsed_email)
-                
+                parsed_email.extracted_content = self._extract_email_content_analysis(
+                    parsed_email
+                )
+
                 # Check if valid for processing
                 is_valid, validation_errors = parsed_email.is_valid_for_processing()
                 if not is_valid:
                     for error in validation_errors:
                         result.add_warning(error)
-                
+
                 result.parsed_email = parsed_email
                 result.session_id = parsed_email.extract_session_id()
                 result.success = True
-                
+
             except ValidationError as e:
                 result.add_error(f"Email validation failed: {str(e)}")
-                for error in e.errors():
-                    result.add_error(f"{error['loc']}: {error['msg']}")
-                
+                for error_detail in e.errors():
+                    result.add_error(f"{error_detail['loc']}: {error_detail['msg']}")
+
         except Exception as e:
             result.add_error(f"Failed to parse SES email: {str(e)}")
-            logger.error("SES email parsing failed", 
-                        error=str(e), 
-                        ses_record_keys=list(ses_record.keys()),
-                        exc_info=True)
-        
+            logger.error(
+                "SES email parsing failed",
+                error=str(e),
+                ses_record_keys=list(ses_record.keys()),
+                exc_info=True,
+            )
+
         finally:
             result.processing_time_ms = int((time.time() * 1000) - start_time)
-            
+
         return result
 
     def parse_raw_email(self, raw_email: str) -> EmailProcessingResult:
@@ -174,133 +202,139 @@ class EmailParser:
         """
         start_time = time.time() * 1000
         result = EmailProcessingResult(success=False, processing_time_ms=0)
-        
+
         try:
             # Parse email using standard library
             msg = email.message_from_string(raw_email)
-            
+
             # Extract email data
             email_data = self._extract_raw_email_data(msg)
-            
+
             # Create and validate ParsedEmail using Pydantic
             try:
                 parsed_email = ParsedEmail.model_validate(email_data)
-                
+
                 # Enhance with content analysis
                 parsed_email.calculate_spam_score()
-                parsed_email.extracted_content = self._extract_email_content_analysis(parsed_email)
-                
+                parsed_email.extracted_content = self._extract_email_content_analysis(
+                    parsed_email
+                )
+
                 # Validate for processing
                 is_valid, validation_errors = parsed_email.is_valid_for_processing()
                 if not is_valid:
                     for error in validation_errors:
                         result.add_warning(error)
-                
+
                 result.parsed_email = parsed_email
                 result.session_id = parsed_email.extract_session_id()
                 result.success = True
-                
+
             except ValidationError as e:
                 result.add_error(f"Email validation failed: {str(e)}")
-                for error in e.errors():
-                    result.add_error(f"{error['loc']}: {error['msg']}")
-                
+                for error_detail in e.errors():
+                    result.add_error(f"{error_detail['loc']}: {error_detail['msg']}")
+
         except Exception as e:
             result.add_error(f"Failed to parse raw email: {str(e)}")
             logger.error("Raw email parsing failed", error=str(e), exc_info=True)
-        
+
         finally:
             result.processing_time_ms = int((time.time() * 1000) - start_time)
-            
+
         return result
 
-    def validate_for_game_processing(self, parsed_email: ParsedEmail) -> EmailProcessingResult:
+    def validate_for_game_processing(
+        self, parsed_email: ParsedEmail
+    ) -> EmailProcessingResult:
         """
         Validate email specifically for game processing using GameEmailSchema.
-        
+
         Args:
             parsed_email: ParsedEmail to validate
-            
+
         Returns:
             EmailProcessingResult with game-specific validation
         """
         result = EmailProcessingResult(success=False, processing_time_ms=0)
         start_time = time.time() * 1000
-        
+
         try:
             # Convert to game-specific schema
             game_email = GameEmailSchema.model_validate(parsed_email.model_dump())
             result.parsed_email = game_email
             result.success = True
-            
+
             # Additional game-specific checks
             if game_email.extracted_content:
                 if not game_email.extracted_content.action_keywords:
                     result.add_warning("No clear game actions detected")
-                    
+
         except ValidationError as e:
             result.add_error(f"Game validation failed: {str(e)}")
-            
+
         finally:
             result.processing_time_ms = int((time.time() * 1000) - start_time)
-            
+
         return result
-        
-    def validate_for_therapy_processing(self, parsed_email: ParsedEmail) -> EmailProcessingResult:
+
+    def validate_for_therapy_processing(
+        self, parsed_email: ParsedEmail
+    ) -> EmailProcessingResult:
         """
         Validate email specifically for therapy processing using TherapyEmailSchema.
-        
+
         Args:
             parsed_email: ParsedEmail to validate
-            
+
         Returns:
             EmailProcessingResult with therapy-specific validation
         """
         result = EmailProcessingResult(success=False, processing_time_ms=0)
         start_time = time.time() * 1000
-        
+
         try:
             # Convert to therapy-specific schema
             therapy_email = TherapyEmailSchema.model_validate(parsed_email.model_dump())
             result.parsed_email = therapy_email
             result.success = True
-            
+
             # Additional therapy-specific checks
             if therapy_email.extracted_content:
                 if not therapy_email.extracted_content.emotional_indicators:
                     result.add_warning("No emotional indicators detected")
-                    
+
         except ValidationError as e:
             result.add_error(f"Therapy validation failed: {str(e)}")
-            
+
         finally:
             result.processing_time_ms = int((time.time() * 1000) - start_time)
-            
+
         return result
 
     # New helper methods for improved parsing
-    
-    def _extract_ses_email_data(self, mail_data: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _extract_ses_email_data(self, mail_data: dict[str, Any]) -> dict[str, Any]:
         """Extract email data from SES mail data structure."""
         common_headers = mail_data.get("commonHeaders", {})
-        
+
         # Extract addresses
         from_address = self._extract_single_address(common_headers.get("from", []))
         to_addresses = common_headers.get("to", [])
         cc_addresses = common_headers.get("cc", [])
-        
+
         # Extract content (placeholder - would fetch from S3 in real implementation)
         body_text, body_html = self._extract_email_content_from_s3(mail_data)
-        
+
         # Extract headers
         headers = {}
         for header in mail_data.get("headers", []):
             headers[header["name"].lower()] = header["value"]
-        
+
         # Determine reply status
         subject = common_headers.get("subject", "")
         is_reply = self._is_reply_email(subject, headers)
-        
+
         return {
             "from_address": from_address,
             "to_addresses": to_addresses,
@@ -312,31 +346,35 @@ class EmailParser:
             "headers": headers,
             "is_reply": is_reply,
             "reply_to_message_id": headers.get("in-reply-to"),
-            "thread_id": headers.get("references", "").split()[-1] if headers.get("references") else None,
+            "thread_id": (
+                headers.get("references", "").split()[-1]
+                if headers.get("references")
+                else None
+            ),
             "attachments": self._extract_attachments_from_ses(mail_data),
-            "is_automated": self._is_automated_email(from_address)
+            "is_automated": self._is_automated_email(from_address),
         }
-    
-    def _extract_raw_email_data(self, msg: email.message.Message) -> Dict[str, Any]:
+
+    def _extract_raw_email_data(self, msg: email.message.Message) -> dict[str, Any]:
         """Extract email data from raw email message."""
         # Extract addresses
         from_address = self._extract_single_address([msg.get("From", "")])
         to_addresses = self._parse_address_list(msg.get("To", ""))
         cc_addresses = self._parse_address_list(msg.get("Cc", ""))
-        
+
         # Extract content
         body_text, body_html = self._extract_message_content(msg)
-        
+
         # Extract headers
         headers = {k.lower(): v for k, v in msg.items()}
-        
+
         # Parse timestamp
         timestamp = self._parse_email_date(msg.get("Date", ""))
-        
+
         # Determine reply status
         subject = msg.get("Subject", "")
         is_reply = self._is_reply_email(subject, headers)
-        
+
         return {
             "from_address": from_address,
             "to_addresses": to_addresses,
@@ -349,24 +387,32 @@ class EmailParser:
             "headers": headers,
             "is_reply": is_reply,
             "reply_to_message_id": headers.get("in-reply-to"),
-            "thread_id": headers.get("references", "").split()[-1] if headers.get("references") else None,
+            "thread_id": (
+                headers.get("references", "").split()[-1]
+                if headers.get("references")
+                else None
+            ),
             "attachments": self._extract_message_attachments(msg),
-            "is_automated": self._is_automated_email(from_address)
+            "is_automated": self._is_automated_email(from_address),
         }
-    
-    def _extract_email_content_analysis(self, parsed_email: ParsedEmail) -> EmailContent:
+
+    def _extract_email_content_analysis(
+        self, parsed_email: ParsedEmail
+    ) -> EmailContent:
         """Extract and analyze email content for game/therapy processing."""
         # Clean the body text
         clean_body = self._clean_email_body(parsed_email.body_text)
-        
+
         # Separate new content from quoted text
         body_parts = self._separate_quoted_text(clean_body)
-        
+
         # Extract keywords and indicators
         action_keywords = self._extract_action_keywords(body_parts["new_content"])
-        emotional_indicators = self._extract_emotional_indicators(body_parts["new_content"])
+        emotional_indicators = self._extract_emotional_indicators(
+            body_parts["new_content"]
+        )
         questions = self._extract_questions(body_parts["new_content"])
-        
+
         return EmailContent(
             raw_content=parsed_email.body_text,
             clean_content=clean_body,
@@ -376,46 +422,46 @@ class EmailParser:
             emotional_indicators=emotional_indicators,
             questions=questions,
             word_count=len(body_parts["new_content"].split()),
-            contains_response=len(body_parts["new_content"].strip()) > 10
+            contains_response=len(body_parts["new_content"].strip()) > 10,
         )
 
-    def _extract_single_address(self, address_list: Union[List[str], str]) -> str:
+    def _extract_single_address(self, address_list: list[str] | str) -> str:
         """Extract single email address from list with better parsing."""
         if not address_list:
             return ""
-        
+
         if isinstance(address_list, list):
             if not address_list:
                 return ""
             address = address_list[0]
         else:
             address = str(address_list)
-        
+
         # Extract email from "Name <email@domain.com>" format
-        email_match = re.search(r'<([^>]+)>', address)
+        email_match = re.search(r"<([^>]+)>", address)
         if email_match:
             return email_match.group(1).strip()
-        
+
         # If no angle brackets, assume the whole string is an email
         return address.strip()
 
-    def _parse_address_list(self, address_string: str) -> List[str]:
+    def _parse_address_list(self, address_string: str) -> list[str]:
         """Parse comma-separated address list with better handling."""
         if not address_string:
             return []
-        
+
         addresses = []
         # Split by comma, but be careful of commas within quoted names
-        for addr in re.split(r',(?![^<]*>)', address_string):
+        for addr in re.split(r",(?![^<]*>)", address_string):
             addr = addr.strip()
             if addr:
                 # Extract email from "Name <email@domain.com>" format
-                email_match = re.search(r'<([^>]+)>', addr)
+                email_match = re.search(r"<([^>]+)>", addr)
                 if email_match:
                     addresses.append(email_match.group(1).strip())
                 else:
                     addresses.append(addr)
-        
+
         return addresses
 
     def _parse_email_date(self, date_string: str) -> datetime:
@@ -424,18 +470,18 @@ class EmailParser:
         return parsed_instant.py_datetime()
 
     def _extract_email_content_from_s3(
-        self, mail_data: Dict[str, Any]
-    ) -> Tuple[str, Optional[str]]:
+        self, mail_data: dict[str, Any]
+    ) -> tuple[str, str | None]:
         """Extract text and HTML content from SES mail data (S3 fetch)."""
         # In real implementation, this would fetch the email content from S3
         # using the source key provided in the SES record
-        
+
         # For now, return placeholder content that indicates S3 fetch needed
         return "[Email content would be fetched from S3 using mail source]", None
 
     def _extract_message_content(
         self, msg: email.message.Message
-    ) -> Tuple[str, Optional[str]]:
+    ) -> tuple[str, str | None]:
         """Extract text and HTML content from email message with better encoding handling."""
         body_text = ""
         body_html = None
@@ -445,27 +491,27 @@ class EmailParser:
                 # Skip container parts
                 if part.is_multipart():
                     continue
-                    
+
                 content_type = part.get_content_type()
-                charset = part.get_content_charset() or 'utf-8'
-                
+                charset = part.get_content_charset() or "utf-8"
+
                 try:
                     if content_type == "text/plain":
                         payload = part.get_payload(decode=True)
-                        if payload:
+                        if payload and isinstance(payload, bytes):
                             decoded_text = payload.decode(charset, errors="ignore")
                             body_text += decoded_text
                     elif content_type == "text/html":
                         payload = part.get_payload(decode=True)
-                        if payload:
+                        if payload and isinstance(payload, bytes):
                             body_html = payload.decode(charset, errors="ignore")
                 except (UnicodeDecodeError, LookupError) as e:
                     logger.warning(f"Failed to decode email part: {e}")
                     # Fallback to utf-8 with error handling
                     payload = part.get_payload(decode=True)
-                    if payload:
+                    if payload and isinstance(payload, bytes):
                         try:
-                            decoded_text = payload.decode('utf-8', errors='replace')
+                            decoded_text = payload.decode("utf-8", errors="replace")
                             if content_type == "text/plain":
                                 body_text += decoded_text
                             elif content_type == "text/html":
@@ -475,19 +521,21 @@ class EmailParser:
         else:
             # Single part message
             try:
-                charset = msg.get_content_charset() or 'utf-8'
+                charset = msg.get_content_charset() or "utf-8"
                 payload = msg.get_payload(decode=True)
-                if payload:
+                if payload and isinstance(payload, bytes):
                     body_text = payload.decode(charset, errors="ignore")
             except (UnicodeDecodeError, LookupError):
                 # Fallback
                 payload = msg.get_payload(decode=True)
-                if payload:
-                    body_text = payload.decode('utf-8', errors='replace')
+                if payload and isinstance(payload, bytes):
+                    body_text = payload.decode("utf-8", errors="replace")
 
         return body_text.strip(), body_html
 
-    def _extract_attachments_from_ses(self, mail_data: Dict[str, Any]) -> List[EmailAttachment]:
+    def _extract_attachments_from_ses(
+        self, mail_data: dict[str, Any]
+    ) -> list[EmailAttachment]:
         """Extract attachment information from SES data."""
         # In real implementation, would parse attachment metadata from SES
         # and fetch attachment content from S3
@@ -495,7 +543,7 @@ class EmailParser:
 
     def _extract_message_attachments(
         self, msg: email.message.Message
-    ) -> List[EmailAttachment]:
+    ) -> list[EmailAttachment]:
         """Extract attachments from email message."""
         attachments = []
 
@@ -512,7 +560,7 @@ class EmailParser:
                                 content_type=part.get_content_type(),
                                 size=len(payload),
                                 content_id=part.get("Content-ID"),
-                                is_inline=False
+                                is_inline=False,
                             )
                         )
                 elif disposition == "inline":
@@ -525,7 +573,7 @@ class EmailParser:
                                 content_type=part.get_content_type(),
                                 size=len(payload),
                                 content_id=part.get("Content-ID"),
-                                is_inline=True
+                                is_inline=True,
                             )
                         )
 
@@ -573,7 +621,7 @@ class EmailParser:
 
         return cleaned.strip()
 
-    def _separate_quoted_text(self, body_text: str) -> Dict[str, str]:
+    def _separate_quoted_text(self, body_text: str) -> dict[str, str]:
         """Separate new content from quoted text with improved detection."""
         lines = body_text.split("\n")
         new_lines = []
@@ -592,7 +640,7 @@ class EmailParser:
             # Also check for lines that start with > (common quote indicator)
             if is_quote_line or line.startswith(">"):
                 in_quote = True
-            
+
             # Check for end of quoted section (empty lines can break quotes)
             elif in_quote and not line_stripped:
                 # Empty line might end quote, but check next few lines
@@ -608,60 +656,61 @@ class EmailParser:
             "quoted_content": "\n".join(quoted_lines).strip(),
         }
 
-    def _extract_action_keywords(self, text: str) -> List[str]:
+    def _extract_action_keywords(self, text: str) -> list[str]:
         """Extract action keywords for dungeon games using improved categorization."""
         text_lower = text.lower()
         found_actions = []
-        
+
         # Use categorized keywords for better action detection
-        for category, keywords in self.action_keywords.items():
+        for _, keywords in self.action_keywords.items():
             for keyword in keywords:
                 # Use word boundaries to avoid partial matches
-                if re.search(rf'\b{re.escape(keyword)}\b', text_lower):
+                if re.search(rf"\b{re.escape(keyword)}\b", text_lower):
                     found_actions.append(keyword)
-        
+
         # Remove duplicates while preserving order
         return list(dict.fromkeys(found_actions))
 
-    def _extract_emotional_indicators(self, text: str) -> List[str]:
+    def _extract_emotional_indicators(self, text: str) -> list[str]:
         """Extract emotional indicators for therapy sessions using improved categorization."""
         text_lower = text.lower()
         found_emotions = []
-        
+
         # Use categorized emotion keywords
-        for category, keywords in self.emotion_keywords.items():
+        for _, keywords in self.emotion_keywords.items():
             for keyword in keywords:
                 # Use word boundaries for better matching
-                if re.search(rf'\b{re.escape(keyword)}\b', text_lower):
+                if re.search(rf"\b{re.escape(keyword)}\b", text_lower):
                     found_emotions.append(keyword)
-        
+
         # Remove duplicates while preserving order
         return list(dict.fromkeys(found_emotions))
 
-    def _extract_questions(self, text: str) -> List[str]:
+    def _extract_questions(self, text: str) -> list[str]:
         """Extract questions from text with improved parsing."""
         # Find sentences ending with question marks, including multiline
-        questions = re.findall(r'[^.!\n]*\?', text, re.MULTILINE)
-        
+        questions = re.findall(r"[^.!\n]*\?", text, re.MULTILINE)
+
         # Clean and filter questions
         cleaned_questions = []
         for q in questions:
             cleaned = q.strip()
             # Filter out very short questions (likely false positives)
-            if len(cleaned) > 5 and not cleaned.startswith('?'):
+            if len(cleaned) > 5 and not cleaned.startswith("?"):
                 cleaned_questions.append(cleaned)
-        
+
         return cleaned_questions
 
 
 # Updated convenience functions using new Pydantic-based parsing
+
 
 def get_email_parser() -> EmailParser:
     """Get email parser instance."""
     return EmailParser()
 
 
-def parse_ses_email(ses_record: Dict[str, Any]) -> EmailProcessingResult:
+def parse_ses_email(ses_record: dict[str, Any]) -> EmailProcessingResult:
     """Convenience function to parse SES email with validation."""
     parser = get_email_parser()
     return parser.parse_ses_email(ses_record)
@@ -688,11 +737,13 @@ def validate_email_for_therapy(parsed_email: ParsedEmail) -> EmailProcessingResu
 def is_email_valid_for_processing(parsed_email: ParsedEmail) -> bool:
     """Quick check if email is valid for any type of processing."""
     is_valid, errors = parsed_email.is_valid_for_processing()
-    
+
     if not is_valid:
-        logger.warning("Email validation failed", 
-                      errors=errors,
-                      from_address=str(parsed_email.from_address),
-                      subject=parsed_email.subject)
-    
+        logger.warning(
+            "Email validation failed",
+            errors=errors,
+            from_address=str(parsed_email.from_address),
+            subject=parsed_email.subject,
+        )
+
     return is_valid

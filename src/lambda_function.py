@@ -125,7 +125,7 @@ def process_ses_email(record: dict[str, Any]) -> None:
         raise
 
 
-def extract_session_info(recipients: list) -> dict[str, Any] | None:
+def extract_session_info(recipients: list[str]) -> dict[str, Any] | None:
     """
     Extract session information from email recipients.
 
@@ -242,13 +242,13 @@ def process_session_turn(
             waiting_for = game_state.get("waiting_for", [])
             waiting_names = [email.split("@")[0] for email in waiting_for]
 
-            ack_message = f"""Thank you for your response! 
+            ack_message = f"""Thank you for your response!
 
-I've received your turn and am now waiting for responses from: {', '.join(waiting_names)}
+I've received your turn and am now waiting for responses from: {", ".join(waiting_names)}
 
-Once everyone has responded, I'll continue the {session['game_type']} and send the next update to all players.
+Once everyone has responded, I'll continue the {session["game_type"]} and send the next update to all players.
 
-Your {session['game_type']} continues...
+Your {session["game_type"]} continues...
 Session: {session_id}"""
 
             send_response_email(
@@ -361,7 +361,7 @@ def initialize_new_session(mail: dict[str, Any], receipt: dict[str, Any]) -> Non
 
 
 def send_response_email(
-    to_address: str, subject: str, body: str, from_address: str = None
+    to_address: str, subject: str, body: str, from_address: str | None = None
 ) -> None:
     """
     Send a response email via SES.
@@ -418,7 +418,7 @@ def extract_email_body(mail: dict[str, Any]) -> str:
 
 
 def send_error_email(
-    to_address: str, error_type: str, detailed_message: str = None
+    to_address: str, error_type: str, detailed_message: str | None = None
 ) -> None:
     """
     Send an error notification email with structured error information.

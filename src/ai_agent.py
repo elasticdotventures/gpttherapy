@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class AIAgent:
     """Manages AI agent interactions using AWS Bedrock."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         from .settings import settings
 
         self.aws_region = settings.AWS_REGION
@@ -56,8 +56,8 @@ class AIAgent:
         game_type: str,
         session_context: dict[str, Any],
         player_input: str,
-        turn_history: list[dict[str, Any]] = None,
-        game_state: dict[str, Any] = None,
+        turn_history: list[dict[str, Any]] | None = None,
+        game_state: dict[str, Any] | None = None,
     ) -> str:
         """
         Generate an AI response based on game type and context.
@@ -97,7 +97,7 @@ class AIAgent:
         self,
         game_type: str,
         session_context: dict[str, Any],
-        game_state: dict[str, Any] = None,
+        game_state: dict[str, Any] | None = None,
     ) -> str:
         """Build the system prompt with agent configuration."""
         agent_config = self.agent_configs.get(game_type, "")
@@ -111,11 +111,11 @@ class AIAgent:
             f"""
 
 ## Current Session Context
-- Session ID: {session_context.get('session_id', 'unknown')}
+- Session ID: {session_context.get("session_id", "unknown")}
 - Game Type: {game_type}
-- Turn Count: {session_context.get('turn_count', 0)}
-- Players: {', '.join(session_context.get('players', []))}
-- Status: {session_context.get('status', 'unknown')}"""
+- Turn Count: {session_context.get("turn_count", 0)}
+- Players: {", ".join(session_context.get("players", []))}
+- Status: {session_context.get("status", "unknown")}"""
         ]
 
         # Add game state context if available
@@ -125,7 +125,7 @@ class AIAgent:
             # Add character states for dungeon games
             if game_type == "dungeon" and "character_states" in game_state:
                 context_parts.append("### Character States")
-                for player, char_state in game_state["character_states"].items():
+                for char_state in game_state["character_states"].values():
                     context_parts.append(
                         f"- {char_state.get('name', 'Unknown')}: Level {char_state.get('level', 1)}, Health {char_state.get('health', 100)}, Location: {char_state.get('location', 'unknown')}"
                     )
@@ -171,7 +171,7 @@ class AIAgent:
 
 ## Response Guidelines
 - Keep responses concise and engaging (500-800 words max for email format)
-- Maintain character consistency throughout the session  
+- Maintain character consistency throughout the session
 - Use the email response format specified in your agent configuration
 - Consider the turn-based nature - advance the story/therapy appropriately
 - Remember this is asynchronous email communication, not real-time chat
@@ -180,14 +180,14 @@ class AIAgent:
 
         system_additions = "".join(context_parts)
 
-        return agent_config + system_additions
+        return str(agent_config) + system_additions
 
     def _build_user_prompt(
         self,
         player_input: str,
-        turn_history: list[dict[str, Any]] = None,
-        session_context: dict[str, Any] = None,
-        game_state: dict[str, Any] = None,
+        turn_history: list[dict[str, Any]] | None = None,
+        session_context: dict[str, Any] | None = None,
+        game_state: dict[str, Any] | None = None,
     ) -> str:
         """Build the user prompt with current input and context."""
         prompt_parts = []
@@ -207,7 +207,7 @@ class AIAgent:
         # Add current player input
         prompt_parts.append("## Current Player Input")
         prompt_parts.append(
-            f"From: {session_context.get('current_player', 'Unknown player')}"
+            f"From: {session_context.get('current_player', 'Unknown player') if session_context else 'Unknown player'}"
         )
         prompt_parts.append(f"Message: {player_input}")
         prompt_parts.append("")
@@ -218,11 +218,11 @@ class AIAgent:
             "Please generate an appropriate response based on your role and the session context. "
         )
 
-        if session_context.get("game_type") == "dungeon":
+        if session_context and session_context.get("game_type") == "dungeon":
             prompt_parts.append(
                 "Advance the adventure story, respond to the player's actions, and provide engaging narrative descriptions."
             )
-        elif session_context.get("game_type") == "intimacy":
+        elif session_context and session_context.get("game_type") == "intimacy":
             prompt_parts.append(
                 "Provide therapeutic guidance, validate emotions, and suggest constructive exercises or reflections."
             )
@@ -253,7 +253,7 @@ class AIAgent:
             response_body = json.loads(response["body"].read())
 
             if "content" in response_body and len(response_body["content"]) > 0:
-                return response_body["content"][0]["text"]
+                return str(response_body["content"][0]["text"])
             else:
                 logger.error("Unexpected response format from Bedrock")
                 return "I apologize, but I'm having trouble generating a response right now."
@@ -268,7 +268,7 @@ class AIAgent:
     def _get_fallback_response(self, game_type: str) -> str:
         """Provide a fallback response when AI generation fails."""
         fallbacks = {
-            "dungeon": """Thank you for your action! I'm currently processing the adventure and will respond with the next part of your story shortly. 
+            "dungeon": """Thank you for your action! I'm currently processing the adventure and will respond with the next part of your story shortly.
 
 Please check back soon as I work on crafting an engaging continuation of your quest.
 
@@ -365,7 +365,7 @@ def generate_ai_response(
     game_type: str,
     session_context: dict[str, Any],
     player_input: str,
-    turn_history: list[dict[str, Any]] = None,
+    turn_history: list[dict[str, Any]] | None = None,
 ) -> str:
     """
     Convenience function to generate AI response without creating agent instance.

@@ -5,7 +5,7 @@ This module provides a single point of configuration using python-decouple
 to manage environment variables with proper defaults and type casting.
 """
 
-from decouple import Csv, config
+from decouple import Csv, config  # type: ignore
 
 
 class Settings:
@@ -63,10 +63,14 @@ class Settings:
     # Rate Limiting
     MAX_EMAILS_PER_HOUR: int = config("MAX_EMAILS_PER_HOUR", default=10, cast=int)
     MAX_SESSIONS_PER_USER: int = config("MAX_SESSIONS_PER_USER", default=5, cast=int)
-    
+
     # Email Processing
-    MAX_EMAIL_BODY_LENGTH: int = config("MAX_EMAIL_BODY_LENGTH", default=50000, cast=int)
-    MAX_ATTACHMENT_SIZE: int = config("MAX_ATTACHMENT_SIZE", default=25*1024*1024, cast=int)  # 25MB
+    MAX_EMAIL_BODY_LENGTH: int = config(
+        "MAX_EMAIL_BODY_LENGTH", default=50000, cast=int
+    )
+    MAX_ATTACHMENT_SIZE: int = config(
+        "MAX_ATTACHMENT_SIZE", default=25 * 1024 * 1024, cast=int
+    )  # 25MB
     SPAM_SCORE_THRESHOLD: int = config("SPAM_SCORE_THRESHOLD", default=7, cast=int)
 
     # Security
@@ -135,7 +139,7 @@ class Settings:
         if errors:
             raise ValueError(f"Configuration validation failed: {'; '.join(errors)}")
 
-    def get_aws_config(self) -> dict:
+    def get_aws_config(self) -> dict[str, str | None]:
         """Get AWS-specific configuration as a dictionary."""
         return {
             "region_name": self.AWS_REGION,
@@ -144,7 +148,7 @@ class Settings:
             "aws_session_token": config("AWS_SESSION_TOKEN", default=None),
         }
 
-    def get_dynamodb_config(self) -> dict:
+    def get_dynamodb_config(self) -> dict[str, object]:
         """Get DynamoDB-specific configuration."""
         return {
             "region_name": self.AWS_REGION,
@@ -155,14 +159,14 @@ class Settings:
             },
         }
 
-    def get_s3_config(self) -> dict:
+    def get_s3_config(self) -> dict[str, str]:
         """Get S3-specific configuration."""
         return {
             "region_name": self.AWS_REGION,
             "bucket_name": self.GAMEDATA_S3_BUCKET,
         }
 
-    def get_logging_config(self) -> dict:
+    def get_logging_config(self) -> dict[str, object]:
         """Get logging-specific configuration."""
         return {
             "level": self.LOG_LEVEL,
@@ -223,7 +227,7 @@ def get_log_level() -> str:
     return settings.LOG_LEVEL
 
 
-def get_table_names() -> dict:
+def get_table_names() -> dict[str, str]:
     """Get all DynamoDB table names."""
     return {
         "sessions": settings.SESSIONS_TABLE_NAME,

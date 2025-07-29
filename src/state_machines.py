@@ -4,7 +4,6 @@ Uses the transitions library for clean state management.
 """
 
 import logging
-from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -13,14 +12,6 @@ from transitions import Machine
 from .datetime_utils import timestamps
 
 try:
-    from .error_handler import (
-        ErrorType,
-        GPTTherapyError,
-        SessionError,
-        TurnError,
-        handle_error,
-        log_error,
-    )
     from .storage import StorageManager
 except ImportError:
     from storage import StorageManager

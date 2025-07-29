@@ -81,7 +81,7 @@ just complete-setup
 
 # Or step by step:
 just setup                 # Install dependencies and pre-commit hooks
-just tf-deploy             # Deploy AWS infrastructure  
+just tf-deploy             # Deploy AWS infrastructure
 just setup-github-secrets  # Configure GitHub Actions secrets
 ```
 
@@ -158,7 +158,7 @@ Sessions use encoded email addresses for routing:
 
 The system uses sophisticated state machines for:
 - **Session States**: `initializing` → `waiting_for_players` → `active` → `completed`
-- **Turn States**: `waiting` → `processing` → `completed` 
+- **Turn States**: `waiting` → `processing` → `completed`
 - **Automatic Transitions**: Based on player responses and timeouts
 
 ## 🔧 Core Features
@@ -360,7 +360,7 @@ engine = GameEngine()
 result = engine.process_player_turn(session_id, player_email, turn_data)
 ```
 
-#### StorageManager  
+#### StorageManager
 ```python
 from src.storage import StorageManager
 
