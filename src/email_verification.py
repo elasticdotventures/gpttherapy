@@ -11,9 +11,8 @@ from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
-
-from .logging_config import get_logger
-from .settings import settings
+from logging_config import get_logger
+from settings import settings
 
 logger = get_logger(__name__)
 

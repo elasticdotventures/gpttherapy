@@ -8,10 +8,10 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any
 
-from .datetime_utils import timestamps
+from datetime_utils import timestamps
 
 try:
-    from .storage import StorageManager
+    from storage import StorageManager
 except ImportError:
     from storage import StorageManager
 

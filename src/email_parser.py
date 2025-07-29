@@ -11,12 +11,11 @@ import time
 from datetime import datetime
 from typing import Any
 
+from datetime_utils import datetime_to_instant, parse_email_date
 from pydantic import ValidationError
 
-from .datetime_utils import datetime_to_instant, parse_email_date
-
 try:
-    from .email_models import (
+    from email_models import (
         EmailAttachment,
         EmailContent,
         EmailProcessingResult,
@@ -24,8 +23,8 @@ try:
         ParsedEmail,
         TherapyEmailSchema,
     )
-    from .error_handler import ErrorType, GPTTherapyError
-    from .logging_config import get_logger
+    from error_handler import ErrorType, GPTTherapyError
+    from logging_config import get_logger
 except ImportError:
     from email_models import (
         EmailAttachment,

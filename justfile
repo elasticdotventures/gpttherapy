@@ -111,7 +111,73 @@ dev:
 # View logs from AWS Lambda
 logs:
     @echo "📋 Recent Lambda logs (last 10 minutes):"
-    aws logs tail /aws/lambda/gpttherapy-handler --since 10m --follow
+    aws logs tail /aws/lambda/gpttherapy-handler --since 10m --follow --region ap-southeast-2
+
+# Email system diagnostics - comprehensive health check
+diagnose:
+    @echo "🔍 Running GPT Therapy Email System Diagnostics..."
+    @echo "================================================="
+    @echo ""
+    @echo "1️⃣ Checking SES account status..."
+    aws ses get-account-sending-enabled --region ap-southeast-2
+    @echo ""
+    @echo "2️⃣ Checking domain verification..."
+    aws ses get-identity-verification-attributes --identities aws.promptexecution.com --region ap-southeast-2
+    @echo ""
+    @echo "3️⃣ Checking game email verification..."
+    aws ses get-identity-verification-attributes --identities dungeon@aws.promptexecution.com intimacy@aws.promptexecution.com --region ap-southeast-2
+    @echo ""
+    @echo "4️⃣ Checking SES receipt rules..."
+    aws ses describe-active-receipt-rule-set --region ap-southeast-2
+    @echo ""
+    @echo "5️⃣ Checking recent emails in S3..."
+    aws s3 ls s3://sydneymail-emails-o1zmvq71/emails/ --region ap-southeast-2 --recursive | tail -5
+    @echo ""
+    @echo "6️⃣ Checking Lambda function status..."
+    aws lambda get-function --function-name gpttherapy-handler --region ap-southeast-2 | jq '.Configuration | {FunctionName, Runtime, State, LastUpdateStatus}'
+    @echo ""
+    @echo "7️⃣ Checking recent Lambda invocations..."
+    aws logs describe-log-streams --log-group-name "/aws/lambda/gpttherapy-handler" --region ap-southeast-2 --order-by LastEventTime --descending --max-items 3
+    @echo ""
+    @echo "✅ Diagnostics complete!"
+
+# Test email processing manually
+test-email-processing:
+    @echo "🧪 Testing email processing..."
+    @echo "Invoking health check Lambda..."
+    aws lambda invoke --function-name gpttherapy-email-health-check --region ap-southeast-2 --payload '{}' /tmp/health-check-result.json
+    @echo "Health check result:"
+    cat /tmp/health-check-result.json | jq .
+    @echo ""
+    @echo "🔗 MX Record check:"
+    dig MX aws.promptexecution.com +short
+
+# Send test email via SES (for testing routing)
+send-test-email EMAIL="hello@aws.promptexecution.com":
+    @echo "📧 Sending test email to {{EMAIL}}..."
+    aws ses send-email \
+        --from hello@aws.promptexecution.com \
+        --destination ToAddresses={{EMAIL}} \
+        --message Subject={Data="GPT Therapy Test"},Body={Text={Data="This is a test email from the GPT Therapy system. If you receive this, email routing is working correctly."}} \
+        --region ap-southeast-2
+    @echo "✅ Test email sent! Check S3 and Lambda logs in a few seconds."
+
+# Quick status check
+email-status:
+    @echo "📊 Quick Email System Status"
+    @echo "============================"
+    @echo ""
+    @echo "🌐 Domain verification:"
+    aws ses get-identity-verification-attributes --identities aws.promptexecution.com --region ap-southeast-2 | jq '.VerificationAttributes."aws.promptexecution.com".VerificationStatus'
+    @echo ""
+    @echo "🎯 Lambda function state:"
+    aws lambda get-function --function-name gpttherapy-handler --region ap-southeast-2 | jq '.Configuration.State'
+    @echo ""
+    @echo "📬 Recent emails (last 3):"
+    aws s3 ls s3://sydneymail-emails-o1zmvq71/emails/ --region ap-southeast-2 --recursive | tail -3 || echo "No emails found"
+    @echo ""
+    @echo "📜 Recent Lambda executions:"
+    aws logs describe-log-streams --log-group-name "/aws/lambda/gpttherapy-handler" --region ap-southeast-2 --order-by LastEventTime --descending --max-items 1 | jq '.logStreams[0].logStreamName // "No recent executions"'
 
 # Build Lambda deployment package
 build-lambda:
@@ -120,11 +186,12 @@ build-lambda:
     uv run python scripts/build_lambda.py
     @echo "✅ Lambda package built successfully"
 
-deploy-lambdas:
+deploy-lambdas: build-lambda
     @echo "🚀 Deploying Lambda functions..."
-    aws lambda update-function-code --function-name gpttherapy-handler --zip-file fileb://dist/gpttherapy-lambda.zip
-    aws lambda update-function-code --function-name gpttherapy-timeout-processor --zip-file fileb://dist/gpttherapy-lambda.zip
-    @echo "✅ Lambda functions deployed successfully"
+    aws lambda update-function-code --function-name gpttherapy-handler --zip-file fileb://dist/gpttherapy-lambda.zip --region ap-southeast-2
+    aws lambda update-function-code --function-name gpttherapy-email-health-check --zip-file fileb://dist/gpttherapy-lambda.zip --region ap-southeast-2
+    -aws lambda update-function-code --function-name gpttherapy-timeout-processor --zip-file fileb://dist/gpttherapy-lambda.zip --region ap-southeast-4
+    @echo "✅ Main Lambda functions deployed successfully"
 
 # Compress project for distribution/backup
 compress FORMAT="tar.gz":

@@ -11,11 +11,11 @@ import boto3
 from botocore.exceptions import ClientError
 
 try:
-    from .ai_agent import AIAgent
-    from .game_engine import GameEngine
-    from .logging_config import get_logger
-    from .settings import settings
-    from .storage import StorageManager
+    from ai_agent import AIAgent
+    from game_engine import GameEngine
+    from logging_config import get_logger
+    from settings import settings
+    from storage import StorageManager
 except ImportError:
     from ai_agent import AIAgent
     from game_engine import GameEngine

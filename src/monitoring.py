@@ -15,8 +15,7 @@ from functools import wraps
 from typing import Any
 
 import boto3
-
-from .datetime_utils import timestamps
+from datetime_utils import timestamps
 
 try:
     import psutil
@@ -27,8 +26,8 @@ except ImportError:
     psutil = None
 
 try:
-    from .error_handler import error_metrics
-    from .storage import StorageManager
+    from error_handler import error_metrics
+    from storage import StorageManager
 except ImportError:
     from error_handler import error_metrics
     from storage import StorageManager
