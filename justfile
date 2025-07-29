@@ -112,3 +112,41 @@ dev:
 logs:
     @echo "📋 Recent Lambda logs (last 10 minutes):"
     aws logs tail /aws/lambda/gpttherapy-handler --since 10m --follow
+
+# Build Lambda deployment package
+build-lambda:
+    @echo "🏗️  Building Lambda deployment package..."
+    mkdir -p dist
+    uv run python scripts/build_lambda.py
+    @echo "✅ Lambda package built successfully"
+
+deploy-lambdas:
+    @echo "🚀 Deploying Lambda functions..."
+    aws lambda update-function-code --function-name gpttherapy-handler --zip-file fileb://dist/lambda-deployment.zip
+    aws lambda update-function-code --function-name gpttherapy-timeout-processor --zip-file fileb://dist/timeout-deployment.zip
+    @echo "✅ Lambda functions deployed successfully"
+
+# Compress project for distribution/backup
+compress FORMAT="tar.gz":
+    @echo "🗜️  Compressing project ({{FORMAT}})..."
+    mkdir -p dist
+    uv run python scripts/compress_project.py --format {{FORMAT}}
+    @echo "✅ Project compressed successfully"
+
+# Compress project with git history
+compress-with-git FORMAT="tar.gz":
+    @echo "🗜️  Compressing project with git ({{FORMAT}})..."
+    mkdir -p dist
+    uv run python scripts/compress_project.py --format {{FORMAT}} --include-git
+    @echo "✅ Project compressed with git history"
+
+# Clean build artifacts and compressed files
+clean:
+    @echo "🧹 Cleaning build artifacts..."
+    rm -rf dist/
+    rm -rf build/
+    rm -rf *.egg-info/
+    find . -type d -name "__pycache__" -exec rm -rf {} +
+    find . -type f -name "*.pyc" -delete
+    find . -type f -name "*.pyo" -delete
+    @echo "✅ Cleanup complete"

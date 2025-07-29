@@ -49,87 +49,30 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v3
       with:
         version: "latest"
-    
+
     - name: Set up Python 3.12
       run: uv python install 3.12
-    
+
     - name: Install dependencies
       run: |
         uv sync --no-dev
-    
-    - name: Create deployment package
-      run: |
-        mkdir -p deployment
-        
-        # Copy source code
-        cp -r src/* deployment/
-        
-        # Install dependencies to deployment directory
-        uv pip install --target deployment -r pyproject.toml --no-deps
-        
-        # Create zip file for main handler
-        cd deployment && zip -r ../lambda-deployment.zip . -x "*.pyc" "__pycache__/*"
-        
-        # Create separate zip for timeout processor
-        cd .. && mkdir -p timeout-deployment
-        cp -r src/* timeout-deployment/
-        uv pip install --target timeout-deployment -r pyproject.toml --no-deps
-        cd timeout-deployment && zip -r ../timeout-deployment.zip . -x "*.pyc" "__pycache__/*"
-    
+
+    - name: Setup Just
+      uses: extractions/setup-just@v2
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Deploy main Lambda function
+
+    - name: Build and Deploy Lambdas
       run: |
-        aws lambda update-function-code \
-          --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
-          --zip-file fileb://lambda-deployment.zip \
-          --region ${{ env.AWS_REGION }}
-    
-    - name: Deploy timeout processor Lambda function
-      run: |
-        aws lambda update-function-code \
-          --function-name ${{ env.TIMEOUT_FUNCTION_NAME }} \
-          --zip-file fileb://timeout-deployment.zip \
-          --region ${{ env.AWS_REGION }}
-    
-    - name: Wait for main function update
-      run: |
-        aws lambda wait function-updated \
-          --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
-          --region ${{ env.AWS_REGION }}
-    
-    - name: Wait for timeout function update
-      run: |
-        aws lambda wait function-updated \
-          --function-name ${{ env.TIMEOUT_FUNCTION_NAME }} \
-          --region ${{ env.AWS_REGION }}
-    
-    - name: Update main function configuration
-      run: |
-        aws lambda update-function-configuration \
-          --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
-          --runtime python3.12 \
-          --handler lambda_function.lambda_handler \
-          --timeout 300 \
-          --region ${{ env.AWS_REGION }} \
-          || true
-    
-    - name: Update timeout function configuration
-      run: |
-        aws lambda update-function-configuration \
-          --function-name ${{ env.TIMEOUT_FUNCTION_NAME }} \
-          --runtime python3.12 \
-          --handler timeout_processor.lambda_handler \
-          --timeout 300 \
-          --region ${{ env.AWS_REGION }} \
-          || true
+        just build-lambda
+        just deploy-lambdas
