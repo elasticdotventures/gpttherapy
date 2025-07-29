@@ -54,27 +54,30 @@ class TestSessionExtraction:
     """Test cases for session information extraction."""
 
     def test_extract_session_info_with_session_id(self) -> None:
-        """Test extracting valid session info."""
-        recipients = ["123@dungeon.promptexecution.com"]
+        """Test extracting valid session info using new prefix+sessionid format."""
+        recipients = ["dungeon+123@aws.promptexecution.com"]
 
         session_info = extract_session_info(recipients)
 
         assert session_info is not None
         assert session_info["session_id"] == "123"
         assert session_info["game_type"] == "dungeon"
-        assert session_info["domain"] == "dungeon.promptexecution.com"
+        assert session_info["domain"] == "aws.promptexecution.com"
 
     def test_extract_session_info_no_session(self) -> None:
-        """Test with no session ID in recipients."""
-        recipients = ["general@promptexecution.com"]
+        """Test with no session ID in recipients (new session format)."""
+        recipients = ["dungeon@aws.promptexecution.com"]
 
         session_info = extract_session_info(recipients)
 
-        assert session_info is None
+        assert session_info is None  # Should return None for new session requests
 
     def test_extract_session_info_multiple_recipients(self) -> None:
         """Test with multiple recipients, one with session ID."""
-        recipients = ["general@promptexecution.com", "456@intimacy.promptexecution.com"]
+        recipients = [
+            "general@promptexecution.com",
+            "intimacy+456@aws.promptexecution.com",
+        ]
 
         session_info = extract_session_info(recipients)
 

@@ -308,14 +308,14 @@ class TestUtilityFunctions:
     """Test utility functions."""
 
     def test_extract_session_id_simple(self) -> None:
-        """Test extracting session ID from simple email."""
-        email = "abc123@dungeon.promptexecution.com"
+        """Test extracting session ID from new prefix+sessionid format."""
+        email = "dungeon+abc123@aws.promptexecution.com"
         session_id = extract_session_id_from_email(email)
         assert session_id == "abc123"
 
     def test_extract_session_id_nanoid(self) -> None:
-        """Test extracting nanoid session ID."""
-        email = "k4NzWcr47GBd@intimacy.promptexecution.com"
+        """Test extracting nanoid session ID from new format."""
+        email = "intimacy+k4NzWcr47GBd@aws.promptexecution.com"
         session_id = extract_session_id_from_email(email)
         assert session_id == "k4NzWcr47GBd"
 
@@ -324,6 +324,20 @@ class TestUtilityFunctions:
         assert extract_session_id_from_email("invalid-email") is None
         assert extract_session_id_from_email("") is None
         assert extract_session_id_from_email(None) is None
+
+    def test_extract_session_id_new_session_format(self) -> None:
+        """Test that new session format (no session ID) returns None."""
+        # These should return None because they're for new session creation
+        assert extract_session_id_from_email("dungeon@aws.promptexecution.com") is None
+        assert extract_session_id_from_email("intimacy@aws.promptexecution.com") is None
+
+    def test_extract_session_id_invalid_game_type(self) -> None:
+        """Test that invalid game types return None."""
+        # These should return None because 'invalid' is not a valid game type
+        assert (
+            extract_session_id_from_email("invalid+abc123@aws.promptexecution.com")
+            is None
+        )
 
 
 class TestErrorHandling:

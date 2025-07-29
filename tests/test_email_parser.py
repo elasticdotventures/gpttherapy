@@ -45,7 +45,7 @@ class TestEmailParser:
                     "timestamp": "2023-01-01T12:00:00.000Z",
                     "commonHeaders": {
                         "from": ["player@example.com"],
-                        "to": ["123@dungeon.promptexecution.com"],
+                        "to": ["dungeon+123@aws.promptexecution.com"],
                         "cc": [],
                         "subject": "Re: Dungeon Adventure Turn 5",
                     },
@@ -54,7 +54,7 @@ class TestEmailParser:
                         {"name": "References", "value": "<thread-id>"},
                     ],
                 },
-                "receipt": {"recipients": ["123@dungeon.promptexecution.com"]},
+                "receipt": {"recipients": ["dungeon+123@aws.promptexecution.com"]},
             }
         }
 
@@ -63,7 +63,7 @@ class TestEmailParser:
         """Sample ParsedEmail for testing."""
         return ParsedEmail(
             from_address="player@example.com",
-            to_addresses=["123@dungeon.promptexecution.com"],
+            to_addresses=["dungeon+123@aws.promptexecution.com"],
             cc_addresses=[],
             subject="Re: Dungeon Adventure Turn 5",
             body_text="I want to attack the goblin with my sword!",
@@ -90,7 +90,7 @@ class TestEmailParser:
             assert result.parsed_email is not None
             assert result.parsed_email.from_address == "player@example.com"
             assert result.parsed_email.to_addresses == [
-                "123@dungeon.promptexecution.com"
+                "dungeon+123@aws.promptexecution.com"
             ]
             assert result.parsed_email.subject == "Re: Dungeon Adventure Turn 5"
             assert result.parsed_email.message_id == "test-message-123"
@@ -110,7 +110,7 @@ class TestEmailParser:
     def test_parse_raw_email(self, email_parser) -> None:
         """Test parsing raw email string."""
         raw_email = """From: player@example.com
-To: 123@dungeon.promptexecution.com
+To: dungeon+123@aws.promptexecution.com
 Subject: Test Subject
 Message-ID: <test-123>
 Date: Mon, 1 Jan 2023 12:00:00 +0000
@@ -123,7 +123,7 @@ This is the email body.
         assert result.success is True
         assert result.parsed_email is not None
         assert result.parsed_email.from_address == "player@example.com"
-        assert "123@dungeon.promptexecution.com" in result.parsed_email.to_addresses
+        assert "dungeon+123@aws.promptexecution.com" in result.parsed_email.to_addresses
         assert result.parsed_email.subject == "Test Subject"
         assert "This is the email body." in result.parsed_email.body_text
 
@@ -339,7 +339,7 @@ class TestConvenienceFunctions:
         """Sample ParsedEmail for testing."""
         return ParsedEmail(
             from_address="player@example.com",
-            to_addresses=["123@dungeon.promptexecution.com"],
+            to_addresses=["dungeon+123@aws.promptexecution.com"],
             cc_addresses=[],
             subject="Re: Dungeon Adventure Turn 5",
             body_text="I want to attack the goblin with my sword!",
@@ -522,7 +522,7 @@ class TestUtilityFunctions:
         """Sample ParsedEmail for testing."""
         return ParsedEmail(
             from_address="player@example.com",
-            to_addresses=["123@dungeon.promptexecution.com"],
+            to_addresses=["dungeon+123@aws.promptexecution.com"],
             cc_addresses=[],
             subject="Re: Dungeon Adventure Turn 5",
             body_text="I want to attack the goblin with my sword!",
