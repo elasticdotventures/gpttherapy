@@ -10,18 +10,9 @@ from typing import Any
 from .datetime_utils import timestamps
 
 try:
-    from .error_handler import (
-        ErrorType,
-        GPTTherapyError,
-        SessionError,
-        TurnError,
-        handle_error,
-        log_error,
-    )
     from .state_machines import (
         SessionState,
         StateMachineManager,
-        TurnState,
         get_state_machine_manager,
     )
     from .storage import StorageManager
@@ -143,9 +134,9 @@ class GameEngine:
 
             # Get expected players for this turn
             expected_players = set(session.get("players", []))
-            submitted_players = set(
-                [turn.get("player_email") for turn in current_turn_submissions]
-            )
+            submitted_players = {
+                turn.get("player_email") for turn in current_turn_submissions
+            }
 
             game_type = session.get("game_type")
 

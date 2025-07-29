@@ -8,7 +8,7 @@ and readable console output for development.
 
 import logging
 import sys
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -29,7 +29,7 @@ def configure_structlog(
     timestamper = structlog.processors.TimeStamper(fmt="ISO")
 
     # Configure common processors
-    processors = [
+    processors: list[Any] = [
         # Add log level and timestamp
         structlog.stdlib.filter_by_level,
         structlog.stdlib.add_logger_name,
@@ -96,7 +96,7 @@ def configure_structlog(
         logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
-def get_logger(name: str = None) -> structlog.BoundLogger:
+def get_logger(name: str | None = None) -> structlog.BoundLogger:
     """
     Get a configured structlog logger.
 
@@ -106,7 +106,7 @@ def get_logger(name: str = None) -> structlog.BoundLogger:
     Returns:
         Configured structlog logger
     """
-    return structlog.get_logger(name)
+    return cast(structlog.BoundLogger, structlog.get_logger(name))
 
 
 def add_global_context(**kwargs: Any) -> None:
@@ -116,7 +116,7 @@ def add_global_context(**kwargs: Any) -> None:
     Args:
         **kwargs: Key-value pairs to add to global context
     """
-    structlog.configure(context_class=dict, initial_values=kwargs)
+    structlog.configure(context_class=dict, **kwargs)
 
 
 # Context managers for temporary log context
@@ -126,13 +126,13 @@ class LogContext:
     def __init__(self, logger: structlog.BoundLogger, **context: Any):
         self.logger = logger
         self.context = context
-        self.bound_logger = None
+        self.bound_logger: structlog.BoundLogger | None = None
 
     def __enter__(self) -> structlog.BoundLogger:
         self.bound_logger = self.logger.bind(**self.context)
         return self.bound_logger
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         pass
 
 

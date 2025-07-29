@@ -76,20 +76,20 @@ cd context_portal && alembic revision --autogenerate -m "Description"
 src/
   __init__.py
   lambda_function.py      # Main Lambda handler
-  
+
 tests/
   __init__.py
   test_lambda_function.py # Lambda handler tests
-  
+
 terraform/
   backend.tf              # AWS provider and backend config
   gpttherapy-lambda.tf    # Lambda function infrastructure
   github-secrets.tf       # IAM user and access keys for GitHub Actions
-  
+
 .github/
   workflows/
     deploy.yml            # CI/CD pipeline for Lambda deployment
-    
+
 games/                    # Game/therapy configurations (to be created)
   dungeon/
     AGENT.md              # LLM role and tone definition

@@ -61,8 +61,6 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         # Get processing options from event detail or top level
         options = {**event, **detail}
-        dry_run = options.get("dry_run", False)
-        max_sessions = options.get("max_sessions", 100)
 
         # Route to appropriate processor based on event type
         if detail.get("health_check"):
@@ -108,7 +106,7 @@ def process_timeouts(timed_out_sessions: list[dict[str, Any]]) -> dict[str, Any]
     Returns:
         Processing results with success/error counts
     """
-    results = {
+    results: dict[str, list[Any]] = {
         "processed": [],
         "errors": [],
         "reminders_sent": [],
@@ -161,7 +159,6 @@ def handle_session_pause(
 ) -> None:
     """Handle a session that was paused due to timeout."""
     session_id = session_info["session_id"]
-    game_type = session_info["game_type"]
     waiting_for = session_info.get("waiting_for", [])
 
     logger.info(f"Session {session_id} paused due to timeout")
@@ -200,8 +197,8 @@ Your couples therapy session has been paused because we haven't received your re
 
 **Session Details:**
 - Session ID: {session_id}
-- Last Activity: {session_info.get('last_activity', 'Unknown')}
-- Turn: {session_info.get('turn_count', 0)}
+- Last Activity: {session_info.get("last_activity", "Unknown")}
+- Turn: {session_info.get("turn_count", 0)}
 
 **What This Means:**
 Your session is safely paused and all progress is preserved. Your partner and therapist are waiting for your input to continue the therapeutic process.
@@ -225,8 +222,8 @@ Your dungeon adventure is paused and your party is waiting for you!
 
 **Adventure Status:**
 - Session ID: {session_id}
-- Last Action: {session_info.get('last_activity', 'Unknown')}
-- Turn: {session_info.get('turn_count', 0)}
+- Last Action: {session_info.get("last_activity", "Unknown")}
+- Turn: {session_info.get("turn_count", 0)}
 
 **What Happened:**
 The adventure is paused because we haven't heard from you. Your fellow adventurers are waiting for your next move!
@@ -280,7 +277,7 @@ def send_continuation_notifications(
 Some party members didn't respond in time, but the quest moves forward with those who are present.
 
 **Current Status:**
-- Turn {timeout_result['current_turn']} completed
+- Turn {timeout_result["current_turn"]} completed
 - Active players: {len(active_players)}
 - Missing players: {len(waiting_for)}
 
@@ -332,7 +329,7 @@ def check_session_health(session_id: str) -> dict[str, Any]:
 
         # Check if session needs attention
         game_type = session.get("game_type")
-        timeout_hours = game_engine.turn_timeout.get(game_type, 24)
+        timeout_hours = game_engine.turn_timeout.get(game_type or "default", 24)
 
         last_activity = session.get("updated_at")
         needs_attention = False
@@ -411,7 +408,7 @@ def process_health_check(options: dict[str, Any]) -> dict[str, Any]:
         # Get all active sessions for health check
         active_sessions = storage.get_active_sessions()
 
-        health_results = {
+        health_results: dict[str, list[Any]] = {
             "healthy_sessions": [],
             "attention_needed": [],
             "cleaned_up": [],
@@ -485,7 +482,11 @@ def process_session_backups(options: dict[str, Any]) -> dict[str, Any]:
         # Get sessions that need backup
         active_sessions = storage.get_active_sessions()
 
-        backup_results = {"backed_up": [], "skipped": [], "errors": []}
+        backup_results: dict[str, list[Any]] = {
+            "backed_up": [],
+            "skipped": [],
+            "errors": [],
+        }
 
         game_state_manager = GameStateManager(storage)
 
@@ -543,7 +544,7 @@ def process_reminder_sending(options: dict[str, Any]) -> dict[str, Any]:
         # Get sessions that might need reminders
         active_sessions = storage.get_active_sessions()
 
-        reminder_results = {
+        reminder_results: dict[str, list[Any]] = {
             "reminders_sent": [],
             "no_reminder_needed": [],
             "errors": [],
@@ -646,7 +647,7 @@ This is a gentle reminder that your couples therapy session is ready for your ne
 
 **Session Details:**
 - Session ID: {session_id}
-- Current Turn: {session_info.get('turn_count', 0)}
+- Current Turn: {session_info.get("turn_count", 0)}
 - Your partner and therapist are ready to continue
 
 **No Pressure:**
@@ -665,7 +666,7 @@ Your epic adventure is ready for your next move!
 
 **Adventure Status:**
 - Session ID: {session_id}
-- Current Turn: {session_info.get('turn_count', 0)}
+- Current Turn: {session_info.get("turn_count", 0)}
 - Your party is ready to continue the quest
 
 **The Adventure Awaits:**

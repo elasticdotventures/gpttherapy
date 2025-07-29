@@ -104,7 +104,7 @@ To accept this invitation:
 3. Start participating immediately
 
 ## Session Details
-- **Session ID**: {session_id}  
+- **Session ID**: {session_id}
 - **Game Type**: {game_type}
 - **Current Players**: {current_player_list}
 - **Started**: {session_start_date}
@@ -135,7 +135,7 @@ Take your time - there's no rush! Just wanted to make sure you didn't miss the c
 
 Reply whenever you're ready to continue.
 
-{agent_signature}  
+{agent_signature}
 Session: {session_id}
 ```
 
@@ -202,7 +202,7 @@ I'm having difficulty processing your recent email. This is usually a temporary 
 
 **What You Can Try:**
 1. Reply again with a simpler message
-2. Avoid special formatting or attachments  
+2. Avoid special formatting or attachments
 3. Make sure you're replying to the most recent session email
 
 **If Problems Persist:**
@@ -223,7 +223,7 @@ I'll help you recover access to your session.
 
 **Information Needed:**
 1. Approximate date you started
-2. Game type (dungeon adventure or couples therapy)  
+2. Game type (dungeon adventure or couples therapy)
 3. Any details you remember about your character or progress
 
 **Recovery Process:**

@@ -34,7 +34,7 @@ This focused therapy module helps couples develop foundational communication ski
 
 ### Session 1: Communication Assessment
 **Goals**: Identify current communication patterns and set improvement goals
-**Exercises**: 
+**Exercises**:
 - Communication style inventory
 - Conflict pattern mapping
 - Positive communication memory sharing
@@ -131,7 +131,7 @@ This focused therapy module helps couples develop foundational communication ski
 - Improved emotional regulation during conversations
 
 ### Medium-term (4-5 sessions)
-- Ability to navigate difficult topics without escalation  
+- Ability to navigate difficult topics without escalation
 - Regular use of new communication tools
 - Increased intimacy and emotional connection
 - Partners feel safer being vulnerable with each other

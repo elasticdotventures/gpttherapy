@@ -7,7 +7,7 @@ Your partner, **{inviter_name}**, has initiated couples therapy support and woul
 ## About This Opportunity
 This is **email-based couples therapy** designed to help partners:
 - Improve communication and understanding
-- Resolve recurring conflicts constructively  
+- Resolve recurring conflicts constructively
 - Strengthen emotional and physical intimacy
 - Build tools for long-term relationship success
 

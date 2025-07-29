@@ -2,7 +2,7 @@ Subject: You're Invited to Join a Dungeon Adventure! 🏰✨
 
 Hello!
 
-Your friend **{inviter_name}** has invited you to join an epic email-based fantasy adventure! 
+Your friend **{inviter_name}** has invited you to join an epic email-based fantasy adventure!
 
 ## About Dungeon Adventures
 - **Interactive storytelling** via email where your choices shape the story
@@ -23,7 +23,7 @@ Reply to this email with your character information:
 1. **Name**: What is your character's name?
 2. **Background**: Choose one:
    - Warrior (strong in combat, brave and direct)
-   - Scholar (knowledgeable about magic and history)  
+   - Scholar (knowledgeable about magic and history)
    - Rogue (sneaky and clever, good at finding secrets)
    - Healer (supportive magic, keeps the group safe)
 

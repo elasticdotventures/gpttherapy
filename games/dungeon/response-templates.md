@@ -158,7 +158,7 @@ Subject: [Session Pause] Adventure Continues Soon
 
 Dear Adventurer,
 
-Your adventure is paused at an exciting moment! 
+Your adventure is paused at an exciting moment!
 
 ## Where We Left Off
 {current_situation_summary}

@@ -6,7 +6,6 @@ Provides structured error handling, logging with context, and error recovery pat
 
 import traceback
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -45,7 +44,7 @@ class ErrorContext:
     timestamp: str | None = None
     additional_data: dict[str, Any] | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.timestamp:
             self.timestamp = timestamps.now()
 
@@ -69,7 +68,7 @@ class GPTTherapyError(Exception):
 class SessionError(GPTTherapyError):
     """Session-related errors."""
 
-    def __init__(self, message: str, session_id: str, **kwargs):
+    def __init__(self, message: str, session_id: str, **kwargs: Any) -> None:
         context = ErrorContext(
             error_type=ErrorType.SESSION_NOT_FOUND, session_id=session_id
         )
@@ -80,8 +79,12 @@ class PlayerError(GPTTherapyError):
     """Player-related errors."""
 
     def __init__(
-        self, message: str, player_email: str, session_id: str = None, **kwargs
-    ):
+        self,
+        message: str,
+        player_email: str,
+        session_id: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         context = ErrorContext(
             error_type=ErrorType.PLAYER_NOT_FOUND,
             player_email=player_email,
@@ -98,9 +101,9 @@ class TurnError(GPTTherapyError):
         message: str,
         session_id: str,
         player_email: str,
-        turn_number: int = None,
-        **kwargs,
-    ):
+        turn_number: int | None = None,
+        **kwargs: Any,
+    ) -> None:
         context = ErrorContext(
             error_type=ErrorType.INVALID_TURN,
             session_id=session_id,
@@ -113,7 +116,9 @@ class TurnError(GPTTherapyError):
 class StorageError(GPTTherapyError):
     """Storage operation errors."""
 
-    def __init__(self, message: str, operation: str = None, **kwargs):
+    def __init__(
+        self, message: str, operation: str | None = None, **kwargs: Any
+    ) -> None:
         context = ErrorContext(
             error_type=ErrorType.STORAGE_ERROR,
             additional_data={"operation": operation} if operation else None,
@@ -122,7 +127,7 @@ class StorageError(GPTTherapyError):
 
 
 def log_error(
-    error: Exception, context: ErrorContext = None, level: str = "ERROR"
+    error: Exception, context: ErrorContext | None = None, level: str = "ERROR"
 ) -> str:
     """
     Log an error with structured context information.
@@ -166,9 +171,9 @@ def log_error(
 
 def handle_error(
     error: Exception,
-    context: ErrorContext = None,
+    context: ErrorContext | None = None,
     notify_user: bool = True,
-    user_email: str = None,
+    user_email: str | None = None,
 ) -> dict[str, Any]:
     """
     Centralized error handling with logging, user notification, and recovery.
@@ -243,12 +248,12 @@ def send_error_notification(
 
 
 def create_error_context(
-    session_id: str = None,
-    player_email: str = None,
-    turn_number: int = None,
-    message_id: str = None,
-    request_id: str = None,
-    **additional_data,
+    session_id: str | None = None,
+    player_email: str | None = None,
+    turn_number: int | None = None,
+    message_id: str | None = None,
+    request_id: str | None = None,
+    **additional_data: Any,
 ) -> ErrorContext:
     """
     Convenience function to create error context.
@@ -275,7 +280,7 @@ def create_error_context(
     )
 
 
-def with_error_handling(func):
+def with_error_handling(func: Any) -> Any:
     """
     Decorator for adding error handling to functions.
 
@@ -286,7 +291,7 @@ def with_error_handling(func):
             pass
     """
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
             return func(*args, **kwargs)
         except GPTTherapyError as e:
@@ -313,12 +318,14 @@ def with_error_handling(func):
 class ErrorMetrics:
     """Simple error metrics tracking."""
 
-    def __init__(self):
-        self.error_counts = {}
-        self.last_errors = []
+    def __init__(self) -> None:
+        self.error_counts: dict[str, int] = {}
+        self.last_errors: list[dict[str, Any]] = []
         self.max_recent_errors = 100
 
-    def record_error(self, error_type: ErrorType, session_id: str = None):
+    def record_error(
+        self, error_type: ErrorType, session_id: str | None = None
+    ) -> None:
         """Record an error occurrence."""
         key = error_type.value
         self.error_counts[key] = self.error_counts.get(key, 0) + 1

@@ -27,7 +27,7 @@ except ImportError:
     psutil = None
 
 try:
-    from .error_handler import ErrorType, error_metrics
+    from .error_handler import error_metrics
     from .storage import StorageManager
 except ImportError:
     from error_handler import error_metrics
@@ -320,10 +320,6 @@ class HealthMonitor:
         start_time = time.time()
 
         try:
-            import boto3
-
-            bedrock_client = boto3.client("bedrock-runtime")
-
             # This is a minimal check - in production you might want to make a small inference
             # For now, just check if we can access the service
             response_time = (time.time() - start_time) * 1000

@@ -4,7 +4,7 @@ Handles session state, turn history, and player data.
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import boto3
 from botocore.exceptions import ClientError
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 class StorageManager:
     """Manages DynamoDB and S3 storage for GPT Therapy sessions."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Use centralized settings
         self.aws_region = settings.AWS_REGION
         self.is_test = settings.IS_TEST_ENV
@@ -89,7 +89,7 @@ class StorageManager:
                 initiator_email=initiator_email,
                 is_test=self.is_test,
             )
-            return session_id
+            return str(session_id)
         except ClientError as e:
             logger.error(
                 "Failed to create session",
@@ -103,7 +103,8 @@ class StorageManager:
         """Retrieve session data by ID."""
         try:
             response = self.sessions_table.get_item(Key={"session_id": session_id})
-            return response.get("Item")
+            item = response.get("Item")
+            return dict(item) if item is not None else None
         except ClientError as e:
             logger.error("Failed to get session", session_id=session_id, error=str(e))
             raise
@@ -237,7 +238,8 @@ class StorageManager:
                 ScanIndexForward=True,  # Sort ascending by turn_number
                 Limit=limit,
             )
-            return response.get("Items", [])
+            items = response.get("Items", [])
+            return cast(list[dict[str, Any]], items)
         except ClientError as e:
             logger.error(
                 "Failed to get session turns", session_id=session_id, error=str(e)
@@ -254,7 +256,7 @@ class StorageManager:
                 Limit=1,
             )
             items = response.get("Items", [])
-            return items[0] if items else None
+            return cast(list[dict[str, Any]], items)[0] if items else None
         except ClientError as e:
             logger.error(
                 "Failed to get latest turn", session_id=session_id, error=str(e)
@@ -298,7 +300,8 @@ class StorageManager:
         """Get player profile by email."""
         try:
             response = self.players_table.get_item(Key={"email": email})
-            return response.get("Item")
+            item = response.get("Item")
+            return cast(dict[str, Any] | None, item)
         except ClientError as e:
             logger.error("Failed to get player", player_email=email, error=str(e))
             raise
@@ -333,7 +336,8 @@ class StorageManager:
 
         try:
             response = self.s3.get_object(Bucket=self.gamedata_bucket, Key=key)
-            return json.loads(response["Body"].read().decode("utf-8"))
+            data = json.loads(response["Body"].read().decode("utf-8"))
+            return cast(dict[str, Any], data)
         except ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchKey":
                 logger.info("No game state found", session_id=session_id, s3_key=key)
@@ -377,7 +381,7 @@ class StorageManager:
     # Query Methods
 
     def get_active_sessions(
-        self, game_type: str = None, limit: int = 100
+        self, game_type: str | None = None, limit: int = 100
     ) -> list[dict[str, Any]]:
         """Get active sessions, optionally filtered by game type."""
         try:
@@ -407,7 +411,8 @@ class StorageManager:
                     Limit=limit,
                 )
 
-            return response.get("Items", [])
+            items = response.get("Items", [])
+            return cast(list[dict[str, Any]], items)
         except ClientError as e:
             logger.error(
                 "Failed to get active sessions", game_type=game_type, error=str(e)
@@ -425,7 +430,8 @@ class StorageManager:
                 ExpressionAttributeValues={":email": player_email},
                 Limit=limit,
             )
-            return response.get("Items", [])
+            items = response.get("Items", [])
+            return cast(list[dict[str, Any]], items)
         except ClientError as e:
             logger.error(
                 "Failed to get player sessions", player_email=player_email, error=str(e)
