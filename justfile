@@ -47,7 +47,7 @@ setup-github-secrets:
 
     echo "🔑 Extracting AWS credentials from Terraform state..."
 
-    # Change to terraform directory
+    # Change to terraform directory, note: terraform is a symlink to a different dir.
     cd terraform
 
     # Extract credentials from Terraform outputs
@@ -64,8 +64,8 @@ setup-github-secrets:
     echo "🚀 Setting GitHub repository secrets..."
 
     # Set GitHub secrets using gh CLI
-    echo "$ACCESS_KEY_ID" | gh secret set AWS_ACCESS_KEY_ID
-    echo "$SECRET_ACCESS_KEY" | gh secret set AWS_SECRET_ACCESS_KEY
+    echo "$ACCESS_KEY_ID" | gh secret set AWS_ACCESS_KEY_ID --app actions --repo elasticdotventures/gpttherapy
+    echo "$SECRET_ACCESS_KEY" | gh secret set AWS_SECRET_ACCESS_KEY --app actions --repo elasticdotventures/gpttherapy
 
 # Complete setup: deploy infrastructure and configure GitHub secrets
 complete-setup: tf-deploy setup-github-secrets
@@ -122,8 +122,8 @@ build-lambda:
 
 deploy-lambdas:
     @echo "🚀 Deploying Lambda functions..."
-    aws lambda update-function-code --function-name gpttherapy-handler --zip-file fileb://dist/lambda-deployment.zip
-    aws lambda update-function-code --function-name gpttherapy-timeout-processor --zip-file fileb://dist/timeout-deployment.zip
+    aws lambda update-function-code --function-name gpttherapy-handler --zip-file fileb://dist/gpttherapy-lambda.zip
+    aws lambda update-function-code --function-name gpttherapy-timeout-processor --zip-file fileb://dist/gpttherapy-lambda.zip
     @echo "✅ Lambda functions deployed successfully"
 
 # Compress project for distribution/backup
