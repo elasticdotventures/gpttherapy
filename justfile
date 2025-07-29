@@ -190,7 +190,7 @@ deploy-lambdas: build-lambda
     @echo "🚀 Deploying Lambda functions..."
     aws lambda update-function-code --function-name gpttherapy-handler --zip-file fileb://dist/gpttherapy-lambda.zip --region ap-southeast-2
     aws lambda update-function-code --function-name gpttherapy-email-health-check --zip-file fileb://dist/gpttherapy-lambda.zip --region ap-southeast-2
-    -aws lambda update-function-code --function-name gpttherapy-timeout-processor --zip-file fileb://dist/gpttherapy-lambda.zip --region ap-southeast-4
+    -aws lambda update-function-code --function-name gpttherapy-timeout-processor --zip-file fileb://dist/gpttherapy-lambda.zip --region ap-southeast-2
     @echo "✅ Main Lambda functions deployed successfully"
 
 # Compress project for distribution/backup
