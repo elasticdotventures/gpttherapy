@@ -29,16 +29,35 @@ except ImportError:
 # Configure structured logging
 logger = get_logger(__name__)
 
-# AWS clients using centralized config
-s3_client = boto3.client("s3", region_name=settings.AWS_REGION)
-ses_client = boto3.client("ses", region_name=settings.SES_REGION)
-bedrock_client = boto3.client("bedrock-runtime")
 
-# Storage manager, AI agent, game engine, and game state
-storage = StorageManager()
-ai_agent = AIAgent()
-game_engine = GameEngine(storage)
-game_state_manager = GameStateManager(storage)
+# AWS clients - lazy initialization to avoid import-time connection issues
+def get_s3_client():
+    return boto3.client("s3", region_name=settings.AWS_REGION)
+
+
+def get_ses_client():
+    return boto3.client("ses", region_name=settings.SES_REGION)
+
+
+def get_bedrock_client():
+    return boto3.client("bedrock-runtime")
+
+
+# Storage manager and AI agent - lazy initialization
+def get_storage():
+    return StorageManager()
+
+
+def get_ai_agent():
+    return AIAgent()
+
+
+def get_game_engine():
+    return GameEngine(get_storage())
+
+
+def get_game_state_manager():
+    return GameStateManager(get_storage())
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -170,7 +189,7 @@ def process_session_turn(
 
     try:
         # 1. Retrieve session state from storage
-        session = storage.get_session(session_id)
+        session = get_storage().get_session(session_id)
         if not session:
             logger.error(f"Session {session_id} not found for player {player_email}")
             send_error_email(
@@ -190,7 +209,7 @@ def process_session_turn(
         }
 
         # Archive the email
-        storage.archive_email(session_id, email_content)
+        get_storage().archive_email(session_id, email_content)
 
         # 3. Process turn through game engine
         turn_data = {
@@ -199,13 +218,13 @@ def process_session_turn(
             "processed_at": email_content["timestamp"],
         }
 
-        game_state = game_engine.process_player_turn(
+        game_state = get_game_engine().process_player_turn(
             session_id, player_email, turn_data
         )
 
         # 4. Get turn history and game state for AI context
-        turn_history = storage.get_session_turns(session_id, limit=10)
-        session_game_state = game_state_manager.get_session_summary(session_id)
+        turn_history = get_storage().get_session_turns(session_id, limit=10)
+        session_game_state = get_game_state_manager().get_session_summary(session_id)
 
         # 5. Determine AI response based on game state
         if game_state["turn_complete"]:
@@ -218,7 +237,7 @@ def process_session_turn(
                 "all_players_responded": True,
             }
 
-            ai_response = ai_agent.generate_response(
+            ai_response = get_ai_agent().generate_response(
                 game_type=session["game_type"],
                 session_context=session_context,
                 player_input=email_content["body"],
@@ -314,17 +333,17 @@ def initialize_new_session(mail: dict[str, Any], receipt: dict[str, Any]) -> Non
             "status": "initializing",
         }
 
-        session_id = storage.create_session(game_type, player_email, session_data)
+        session_id = get_storage().create_session(game_type, player_email, session_data)
 
         # 3. Create/update player profile
         player_data = {
             "name": player_email.split("@")[0],  # Default name from email
             "last_activity": mail["timestamp"],
         }
-        storage.create_or_update_player(player_email, player_data)
+        get_storage().create_or_update_player(player_email, player_data)
 
         # 4. Generate AI initialization response
-        ai_response = ai_agent.generate_initialization_response(
+        ai_response = get_ai_agent().generate_initialization_response(
             game_type=game_type, player_email=player_email, session_id=session_id
         )
 
@@ -376,7 +395,7 @@ def send_response_email(
         from_address = "noreply@promptexecution.com"
 
     try:
-        response = ses_client.send_email(
+        response = get_ses_client().send_email(
             Source=from_address,
             Destination={"ToAddresses": [to_address]},
             Message={"Subject": {"Data": subject}, "Body": {"Text": {"Data": body}}},

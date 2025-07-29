@@ -42,10 +42,18 @@ jobs:
         uv run ruff format . --check
 
     - name: Run type checking
+      env:
+        AWS_REGION: us-east-1
+        SES_REGION: us-east-1
+        IS_TEST_ENV: true
       run: |
         uv run mypy .
 
     - name: Run tests
+      env:
+        AWS_REGION: us-east-1
+        SES_REGION: us-east-1
+        IS_TEST_ENV: true
       run: |
         uv run pytest tests/ -v --cov=src/
 
