@@ -82,6 +82,7 @@ python_files = ["test_*.py", "*_test.py"]
 markers = [
     "asyncio: mark test as async"
 ]
+asyncio_mode = "auto"
 
 [dependency-groups]
 dev = [
@@ -89,6 +90,7 @@ dev = [
     "mypy>=1.17.0",
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
+    "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.2.1",
     "ruff>=0.12.5",
     "types-boto3>=1.39.15",

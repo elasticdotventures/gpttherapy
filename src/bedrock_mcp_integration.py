@@ -68,7 +68,7 @@ class BedrockMCPAgent:
             # NOTE: session_id intentionally not logged for security
         )
 
-    def generate_response_with_tools(
+    async def generate_response_with_tools(
         self,
         game_type: str,
         session_context: dict[str, Any],
@@ -107,7 +107,9 @@ class BedrockMCPAgent:
             tools = self.mcp_server.get_tools_for_model()
 
             # Call Bedrock with tool support
-            response = self._call_bedrock_with_tools(system_prompt, user_prompt, tools)
+            response = await self._call_bedrock_with_tools(
+                system_prompt, user_prompt, tools
+            )
 
             return response
 
@@ -140,7 +142,8 @@ You have access to the following tools to enhance your responses:
 2. **get_turn_history(limit=5)** - Get recent conversation history
 3. **update_game_state(state_update, reason)** - Update game state based on your analysis
 4. **check_player_status(player_email)** - Check status of specific players
-5. **get_game_rules()** - Get game rules and configuration
+5. **add_player(player_email)** - Add new player (only during initialization)
+6. **get_game_rules()** - Get game rules and configuration
 
 ### Tool Usage Guidelines:
 
@@ -202,7 +205,7 @@ Remember: Use tools to get real-time information before responding.
 
         return "\n".join(prompt_parts)
 
-    def _call_bedrock_with_tools(
+    async def _call_bedrock_with_tools(
         self, system_prompt: str, user_prompt: str, tools: list[dict[str, Any]]
     ) -> str:
         """
@@ -235,7 +238,7 @@ Remember: Use tools to get real-time information before responding.
             response_body = json.loads(response["body"].read())
 
             # Process response and handle tool calls
-            return self._process_bedrock_response(response_body, messages, tools)
+            return await self._process_bedrock_response(response_body, messages, tools)
 
         except ClientError as e:
             logger.error("Bedrock API error", error=str(e))
@@ -244,7 +247,7 @@ Remember: Use tools to get real-time information before responding.
             logger.error("Unexpected error calling Bedrock", error=str(e))
             raise
 
-    def _process_bedrock_response(
+    async def _process_bedrock_response(
         self,
         response_body: dict[str, Any],
         messages: list[dict[str, Any]],
@@ -283,7 +286,7 @@ Remember: Use tools to get real-time information before responding.
 
             try:
                 # Execute tool with authenticated session context
-                result = self._execute_mcp_tool(tool_name, tool_input)
+                result = await self._execute_mcp_tool(tool_name, tool_input)
                 tool_results.append(
                     {
                         "type": "tool_result",
@@ -306,7 +309,7 @@ Remember: Use tools to get real-time information before responding.
 
         # Continue conversation with tool results
         if tool_results:
-            return self._continue_conversation_with_tools(
+            return await self._continue_conversation_with_tools(
                 messages, content, tool_results, tools
             )
         else:
@@ -322,7 +325,7 @@ Remember: Use tools to get real-time information before responding.
         """
         return await self.mcp_server.execute_tool_call(tool_name, tool_input)
 
-    def _continue_conversation_with_tools(
+    async def _continue_conversation_with_tools(
         self,
         messages: list[dict[str, Any]],
         assistant_content: list[dict[str, Any]],
@@ -396,7 +399,7 @@ def create_bedrock_mcp_agent() -> BedrockMCPAgent:
     return BedrockMCPAgent()
 
 
-def generate_mcp_response(
+async def generate_mcp_response(
     session_id: str,
     player_email: str,
     game_type: str,
@@ -428,7 +431,7 @@ def generate_mcp_response(
     agent.set_session_context(session_id, player_email, game_type)
 
     # Generate response with tools (model cannot access session_id)
-    return agent.generate_response_with_tools(
+    return await agent.generate_response_with_tools(
         game_type=game_type,
         session_context=session_context,
         player_input=player_input,

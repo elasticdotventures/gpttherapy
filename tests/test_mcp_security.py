@@ -88,8 +88,7 @@ class TestMCPToolSecurity:
         tools = mcp_server.get_tools_for_model()
 
         for tool in tools:
-            # Check tool name doesn't reference session
-            assert "session" not in tool["name"].lower()
+            # Check tool name doesn't reference session_id (get_session_status is allowed)
             assert "session_id" not in tool["name"]
 
             # Check parameters don't include session_id
@@ -124,8 +123,8 @@ class TestMCPToolSecurity:
 
         authenticated_server.storage.get_session.return_value = Success(mock_session)
 
-        # Execute tool
-        result = await authenticated_server.mcp.get_session_status()
+        # Execute tool via execute_tool_call
+        result = await authenticated_server.execute_tool_call("get_session_status", {})
 
         # Verify session_id is NOT in response
         assert "session_id" not in result
@@ -166,8 +165,10 @@ class TestMCPToolSecurity:
             mock_turns
         )
 
-        # Execute tool
-        result = await authenticated_server.mcp.get_turn_history(limit=2)
+        # Execute tool via execute_tool_call
+        result = await authenticated_server.execute_tool_call(
+            "get_turn_history", {"limit": 2}
+        )
 
         # Verify session_id removed from all turns
         for turn in result:
@@ -240,7 +241,8 @@ class TestBedrockMCPIntegration:
         assert "Status: active" in prompt
 
     @patch("src.bedrock_mcp_integration.BedrockMCPAgent._call_bedrock_with_tools")
-    def test_generate_response_session_isolation(
+    @pytest.mark.asyncio
+    async def test_generate_response_session_isolation(
         self, mock_bedrock_call, bedrock_agent
     ):
         """Test response generation maintains session ID isolation."""
@@ -254,6 +256,15 @@ class TestBedrockMCPIntegration:
         # Mock Bedrock response
         mock_bedrock_call.return_value = "The dragon roars menacingly!"
 
+        # Mock the tool definitions to return real tool definitions
+        bedrock_agent.mcp_server.get_tools_for_model.return_value = [
+            {
+                "name": "get_session_status",
+                "description": "Get current session status and game state",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        ]
+
         # Safe session context (no session_id)
         safe_context = {
             "turn_count": 3,
@@ -262,7 +273,7 @@ class TestBedrockMCPIntegration:
         }
 
         # Generate response
-        bedrock_agent.generate_response_with_tools(
+        await bedrock_agent.generate_response_with_tools(
             game_type="dungeon",
             session_context=safe_context,
             player_input="I approach the dragon",
@@ -290,11 +301,12 @@ class TestBedrockMCPIntegration:
             properties = params.get("properties", {})
             assert "session_id" not in properties
 
-    def test_unauthenticated_generation_blocked(self, bedrock_agent):
+    @pytest.mark.asyncio
+    async def test_unauthenticated_generation_blocked(self, bedrock_agent):
         """Test response generation fails without authenticated session."""
         # No session context set
         with pytest.raises(ValueError, match="Session context not authenticated"):
-            bedrock_agent.generate_response_with_tools(
+            await bedrock_agent.generate_response_with_tools(
                 game_type="dungeon", session_context={}, player_input="test input"
             )
 
@@ -331,16 +343,19 @@ class TestMCPConvenienceFunctions:
     """Test convenience functions maintain security."""
 
     @patch("src.bedrock_mcp_integration.BedrockMCPAgent")
-    def test_generate_mcp_response_security(self, mock_agent_class):
+    @pytest.mark.asyncio
+    async def test_generate_mcp_response_security(self, mock_agent_class):
         """Test convenience function maintains session ID isolation."""
         from src.bedrock_mcp_integration import generate_mcp_response
 
         mock_agent = MagicMock()
         mock_agent_class.return_value = mock_agent
-        mock_agent.generate_response_with_tools.return_value = "Test response"
+        mock_agent.generate_response_with_tools = AsyncMock(
+            return_value="Test response"
+        )
 
         # Call convenience function with session_id (lambda-provided)
-        response = generate_mcp_response(
+        response = await generate_mcp_response(
             session_id="lambda-provided-456",  # Trusted by lambda
             player_email="player@example.com",
             game_type="dungeon",

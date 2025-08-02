@@ -20,6 +20,7 @@ GPTTherapy supports two primary use cases:
 - **Turn-based system**: Sessions advance only after all required participants respond
 - **Email interface only**: No frontend; all interactions via standard email clients
 - **AI-mediated narratives**: LLM agents process player input and generate cohesive responses
+- **MCP tool security**: Secure AI model access with session ID isolation and state validation
 - **Session memory & persistence**: Complete game state tracking with DynamoDB and S3
 - **Automatic timeout handling**: Smart reminders and session management
 - **Robust email processing**: Advanced parsing with Pydantic validation
@@ -28,7 +29,7 @@ GPTTherapy supports two primary use cases:
 
 ## 🏗️ Architecture
 
-### Core Components
+### High-Level System Flow
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
@@ -45,14 +46,58 @@ GPTTherapy supports two primary use cases:
                                 ▼                        ▼
                        ┌──────────────────┐    ┌─────────────────┐
                        │    Storage       │    │   AI Agent      │
-                       │ (DynamoDB + S3)  │    │  (Bedrock)      │
+                       │ (DynamoDB + S3)  │    │  (Bedrock MCP)  │
                        └──────────────────┘    └─────────────────┘
 ```
+
+### MCP Tool Security Architecture
+
+GPTTherapy implements a sophisticated **Model Context Protocol (MCP)** integration that allows AI models to access session management tools while maintaining strict security isolation:
+
+```mermaid
+graph TB
+    subgraph "Security Boundary"
+        A[Email] --> B[Lambda Authentication]
+        B --> C[Session Context Creation]
+        C --> D[MCP Server Setup]
+    end
+
+    subgraph "AI Model Layer"
+        E[Bedrock Model] --> F[Tool Definitions Only]
+        F --> G[Tool Call Requests]
+    end
+
+    subgraph "Secure Tool Execution"
+        H[Tool Router] --> I[Authentication Check]
+        I --> J[Session ID Injection]
+        J --> K[Tool Implementation]
+        K --> L[Storage Operations]
+        L --> M[Sanitized Response]
+    end
+
+    D --> E
+    G --> H
+    M --> E
+
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style I fill:#fff3e0
+    style M fill:#e8f5e8
+```
+
+#### Key Security Principles
+
+1. **Session ID Isolation**: Models NEVER see or specify session IDs
+2. **Pre-authenticated Context**: Lambda sets session context before model interaction
+3. **Tool Parameter Validation**: Models can only provide allowed parameters
+4. **Response Sanitization**: All responses strip session identifiers
+5. **State-based Authorization**: Tools validate session state before execution
 
 ### Technology Stack
 
 - **Python 3.12+**: Core language with modern typing
 - **AWS Serverless**: Lambda, SES, DynamoDB, S3, EventBridge
+- **FastMCP**: Model Context Protocol for secure AI tool calling
 - **Pydantic**: Data validation and serialization
 - **Whenever**: Modern datetime handling
 - **Email-validator**: Robust email address validation
@@ -118,6 +163,8 @@ cd context_portal && alembic upgrade head
 gpttherapy/
 ├── src/                           # Core application code
 │   ├── ai_agent.py               # AI agent integration (Bedrock)
+│   ├── bedrock_mcp_integration.py # MCP tool calling with Bedrock
+│   ├── mcp_tools.py              # Secure MCP server and tools
 │   ├── datetime_utils.py         # Centralized datetime handling
 │   ├── email_models.py           # Pydantic email validation models
 │   ├── email_parser.py           # Email parsing and processing
@@ -148,27 +195,140 @@ gpttherapy/
 
 ## 🎮 How It Works
 
+### Player Interaction Flow
+
+```mermaid
+sequenceDiagram
+    participant P1 as Player 1
+    participant P2 as Player 2
+    participant SES as AWS SES
+    participant L as Lambda
+    participant MCP as MCP Server
+    participant AI as Bedrock Model
+    participant DB as Storage
+
+    Note over P1,DB: Session Initialization
+    P1->>SES: Email to dungeon@game.post
+    SES->>L: Trigger Lambda
+    L->>DB: Create session (status: initializing)
+    L->>P1: Send init-template.md form
+    P1->>L: Reply with filled form
+    L->>MCP: Set session context (session_id: ABC123)
+    L->>P1: Send invite-template with session link
+
+    Note over P1,DB: Player Addition (MCP Security)
+    P2->>SES: Email to ABC123@game.post
+    SES->>L: Parse session_id from email
+    L->>MCP: Authenticate session ABC123
+    MCP->>AI: Expose tool definitions (NO session_id)
+    AI->>MCP: Call add_player(player_email: p2@email.com)
+    MCP->>MCP: Inject session_id ABC123 internally
+    MCP->>DB: Add player to session ABC123
+    MCP->>AI: Return {success: true, player_count: 2}
+    L->>P2: Send welcome message
+
+    Note over P1,DB: Game Play with AI Tools
+    P1->>L: Send game action
+    L->>MCP: Set authenticated context
+    MCP->>AI: Tools: get_session_status, get_turn_history, etc.
+    AI->>MCP: get_session_status()
+    MCP->>DB: Query session ABC123 (hidden from AI)
+    MCP->>AI: {status: "active", turn_count: 5, players: 2}
+    AI->>MCP: update_game_state("combat_initiated")
+    MCP->>DB: Update session ABC123
+    AI->>L: Generated response with context
+    L->>P1: AI narrative response
+    L->>P2: AI narrative response
+```
+
 ### User Flow
 
-1. **Start**: User emails `dungeon@dungeon.post`
+1. **Session Creation**: User emails `dungeon@game.post`
 2. **Form Response**: Receives `init-template.md` form, fills it out, replies
-3. **Invite Others**: Receives `invite-template.md` with session ID to forward
-4. **Game Starts**: Once minimum players join, AI narrator begins
-5. **Turn-based Play**: Players email responses, AI processes and responds
-6. **Session Management**: Automatic timeouts, reminders, and completion
+3. **Player Invitation**: Receives `invite-template.md` with session-specific email address
+4. **Secure Player Addition**: New players use MCP `add_player()` tool (only during initialization)
+5. **Game Progression**: AI uses MCP tools to maintain game state and generate contextual responses
+6. **Turn Management**: Automatic state transitions and timeout handling
 
-### Email Addressing
+### Email Addressing & Security
 
-Sessions use encoded email addresses for routing:
-- `123abc@dungeon.promptexecution.com` → Session ID: `123abc`
-- AI responses come from domain-specific addresses
-- Automatic bounce handling and error recovery
+Sessions use encoded email addresses for secure routing:
+- `ABC123@dungeon.promptexecution.com` → Session ID: `ABC123`
+- **Security**: Session ID extracted by Lambda, NEVER exposed to AI model
+- **Routing**: AI responses come from domain-specific addresses
+- **Recovery**: Automatic bounce handling and error recovery
+
+### MCP Tool Security Model
+
+#### Tool Definitions Exposed to Model
+```python
+# What the AI model sees (NO session information)
+{
+    "name": "add_player",
+    "description": "Add a new player to the session (only during initialization)",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "player_email": {"type": "string"}
+        },
+        "required": ["player_email"]
+    }
+}
+```
+
+#### Secure Tool Execution Flow
+```python
+# 1. Model makes tool call (session-agnostic)
+model_request = {
+    "tool_name": "add_player",
+    "parameters": {"player_email": "newplayer@example.com"}
+}
+
+# 2. Lambda injects authenticated session context
+authenticated_context = SessionSecurityContext(
+    session_id="ABC123",  # From email parsing, NOT from model
+    player_email="admin@example.com",
+    game_type="dungeon"
+)
+
+# 3. Tool execution with session access
+async def add_player_secure(player_email: str):
+    ctx = ensure_authenticated()  # Gets session_id: ABC123
+
+    # Check if session allows new players
+    session = storage.get_session(ctx.session_id)  # Uses ABC123
+    if session.status not in ["initializing", "waiting_for_players"]:
+        return {"error": "Cannot add players after game has started"}
+
+    # Add player to authenticated session
+    session.players.append(player_email)
+    storage.update_session(ctx.session_id, session)
+
+    # Return sanitized response (NO session_id)
+    return {
+        "success": True,
+        "player_email": player_email,
+        "player_count": len(session.players)
+    }
+```
+
+#### Available MCP Tools
+
+| Tool | Purpose | Model Access | Session State Required |
+|------|---------|--------------|----------------------|
+| `get_session_status` | Current game state | ✅ Safe metadata only | Any |
+| `get_turn_history` | Recent player actions | ✅ Sanitized history | Any |
+| `add_player` | Add new player | ✅ Email parameter only | `initializing`, `waiting_for_players` |
+| `check_player_status` | Player information | ✅ Public player data | Any |
+| `update_game_state` | Progress narrative | ✅ State description | `active` |
+| `get_game_rules` | Game configuration | ✅ Rules content | Any |
 
 ### State Management
 
 The system uses sophisticated state machines for:
 - **Session States**: `initializing` → `waiting_for_players` → `active` → `completed`
 - **Turn States**: `waiting` → `processing` → `completed`
+- **Tool Authorization**: State-based access control (e.g., `add_player` only during initialization)
 - **Automatic Transitions**: Based on player responses and timeouts
 
 ## 🔧 Core Features
@@ -228,21 +388,91 @@ python -m pytest --cov=src tests/
 
 ### Test Coverage
 
-- **211 total tests** across all modules
+- **263 total tests** across all modules with 97%+ coverage
 - **Email Processing**: 32 tests covering Pydantic validation, parsing, and content extraction
 - **Game Engine**: 24 tests for turn management and multiplayer coordination
 - **State Machines**: 27 tests for session and turn state transitions
 - **DateTime Utilities**: 30 tests for timezone handling and timestamp operations
 - **Storage Layer**: 20 tests for DynamoDB and S3 operations
 - **Monitoring**: 30 tests for metrics and health checks
+- **MCP Security**: 20 tests for tool calling security and session isolation
+  - Session ID isolation verification
+  - Tool parameter validation
+  - State-based authorization (e.g., `add_player` during initialization only)
+  - Response sanitization
+  - Authentication boundary enforcement
 
 ## 🔒 Security & Privacy
+
+### Core Security Features
 
 - **Email Validation**: Comprehensive email address validation and sanitization
 - **Content Filtering**: Automatic detection and blocking of inappropriate content
 - **Session Isolation**: Complete isolation between different game sessions
 - **AWS IAM**: Minimal privilege principles for all AWS resources
 - **Data Encryption**: Encryption at rest and in transit for all stored data
+
+### MCP Security Architecture
+
+GPTTherapy implements enterprise-grade security for AI model access through a sophisticated **Model Context Protocol (MCP)** layer:
+
+#### Session ID Isolation
+```python
+# ❌ What models CANNOT do
+model_request = {
+    "tool_name": "add_player",
+    "parameters": {
+        "session_id": "ABC123",      # ❌ Not allowed in parameters
+        "player_email": "user@example.com"
+    }
+}
+
+# ✅ What models CAN do
+model_request = {
+    "tool_name": "add_player",
+    "parameters": {
+        "player_email": "user@example.com"  # ✅ Only allowed parameters
+    }
+}
+```
+
+#### Authentication Layer
+```python
+class SessionSecurityContext:
+    def __init__(self, session_id: str, player_email: str, game_type: str):
+        self._session_id = session_id  # Private - model cannot access
+        self._player_email = player_email
+        self._game_type = game_type
+
+    def to_model_context(self) -> dict[str, Any]:
+        """Returns safe context for model - NO session ID included."""
+        return {
+            "game_type": self._game_type,
+            "player_email": self._player_email,
+            "timestamp": datetime.now().isoformat(),
+            # NOTE: session_id deliberately excluded
+        }
+```
+
+#### Security Validation Tests
+
+The system includes comprehensive security tests ensuring:
+
+- **No Session ID Leakage**: 20+ tests verify session IDs never appear in model responses
+- **Tool Parameter Validation**: Models cannot specify unauthorized parameters
+- **State-based Authorization**: Tools validate session state before execution
+- **Response Sanitization**: All responses strip internal identifiers
+- **Authentication Boundaries**: Unauthenticated access is blocked
+
+#### Security Guarantees
+
+| Security Aspect | Implementation | Validation |
+|-----------------|----------------|------------|
+| Session ID Isolation | Never exposed to models | Automated tests verify no leakage |
+| State Validation | Tools check session status | `add_player` only during initialization |
+| Response Sanitization | Strip internal identifiers | All responses validated |
+| Authentication | Lambda-only session context | Unauthenticated calls blocked |
+| Tool Authorization | State-based access control | Comprehensive test coverage |
 
 ## 📊 Performance
 

@@ -82,6 +82,7 @@ class GPTTherapyMCPServer:
         self.game_engine = GameEngine()
         self.state_manager = StateMachineManager()
         self._session_context: SessionSecurityContext | None = None
+        self._tool_functions = {}  # Store tool function references
 
         # Register secure tools
         self._register_tools()
@@ -254,6 +255,73 @@ class GPTTherapyMCPServer:
             }
 
         @self.mcp.tool
+        async def add_player(player_email: str) -> dict[str, Any]:
+            """
+            Add a new player to the current session.
+
+            SECURITY: Only allowed during initialization phase.
+            Fails once game has started to prevent session tampering.
+
+            Args:
+                player_email: Email of player to add to session
+
+            Returns:
+                Result of player addition without session ID exposure
+            """
+            ctx = self._ensure_authenticated()
+
+            try:
+                # Get current session to check state
+                session_result = self.storage.get_session(ctx.session_id)
+                if isinstance(session_result, Failure):
+                    return {"error": "Session access failed", "success": False}
+
+                session = session_result.unwrap()
+                if not session:
+                    return {"error": "Session not found", "success": False}
+
+                # Check if game is in initialization phase
+                session_status = session.get("status", "unknown")
+                if session_status not in ["initializing", "waiting_for_players"]:
+                    return {
+                        "error": "Cannot add players after game has started",
+                        "success": False,
+                        "current_status": session_status,
+                        "allowed_statuses": ["initializing", "waiting_for_players"],
+                    }
+
+                # Check if player already exists
+                current_players = session.get("players", [])
+                if player_email in current_players:
+                    return {
+                        "error": "Player already in session",
+                        "success": False,
+                        "player_email": player_email,
+                    }
+
+                # Add player to session
+                current_players.append(player_email)
+                session["players"] = current_players
+                session["last_activity"] = datetime.now().isoformat()
+
+                # Update session in storage
+                update_result = self.storage.update_session(ctx.session_id, session)
+                if isinstance(update_result, Failure):
+                    return {"error": "Failed to update session", "success": False}
+
+                return {
+                    "success": True,
+                    "player_email": player_email,
+                    "player_count": len(current_players),
+                    "session_status": session_status,
+                    "message": f"Player {player_email} added successfully",
+                }
+
+            except Exception as e:
+                logger.error("Add player error", error=str(e))
+                return {"error": "Internal error adding player", "success": False}
+
+        @self.mcp.tool
         async def get_game_rules() -> dict[str, Any]:
             """
             Get game rules and configuration for current game type.
@@ -350,6 +418,20 @@ class GPTTherapyMCPServer:
                 },
             },
             {
+                "name": "add_player",
+                "description": "Add a new player to the session (only during initialization)",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "player_email": {
+                            "type": "string",
+                            "description": "Email of player to add to session",
+                        }
+                    },
+                    "required": ["player_email"],
+                },
+            },
+            {
                 "name": "get_game_rules",
                 "description": "Get game rules and configuration",
                 "parameters": {"type": "object", "properties": {}},
@@ -369,14 +451,229 @@ class GPTTherapyMCPServer:
             return {"error": "No authenticated session context"}
 
         try:
-            # Get tool method from MCP server
-            tool_method = getattr(self.mcp, f"_tool_{tool_name}", None)
-            if tool_method is None:
-                return {"error": f"Tool {tool_name} not found"}
+            # Use FastMCP's internal tool execution
+            # The tools are already registered with @self.mcp.tool decorators
+            # We need to call them through the FastMCP server directly
 
-            # Execute tool with parameters (session_id is implicit via context)
-            result = await tool_method(**parameters)
-            return result
+            if tool_name == "get_session_status":
+                # Call the registered tool function
+                async def get_session_status_wrapper():
+                    ctx = self._ensure_authenticated()
+                    result = self.storage.get_session(ctx.session_id)
+                    if isinstance(result, Failure):
+                        return {
+                            "error": "Failed to retrieve session",
+                            "status": "error",
+                        }
+
+                    session = result.unwrap()
+                    if not session:
+                        return {"error": "Session not found", "status": "error"}
+
+                    return {
+                        "status": session.get("status", "unknown"),
+                        "game_type": session.get("game_type", "unknown"),
+                        "turn_count": session.get("turn_count", 0),
+                        "player_count": len(session.get("players", [])),
+                        "created_at": session.get("created_at"),
+                        "last_activity": session.get("last_activity"),
+                    }
+
+                return await get_session_status_wrapper()
+
+            elif tool_name == "get_turn_history":
+                limit = parameters.get("limit", 5)
+
+                async def get_turn_history_wrapper():
+                    ctx = self._ensure_authenticated()
+                    result = self.storage.get_session_turns(ctx.session_id, limit=limit)
+                    if isinstance(result, Failure):
+                        return [{"error": "Failed to retrieve turns"}]
+
+                    turns = result.unwrap()
+                    safe_turns = []
+                    for turn in turns:
+                        safe_turn = {
+                            "turn_number": turn.get("turn_number"),
+                            "player_email": turn.get("player_email"),
+                            "content": turn.get("content"),
+                            "timestamp": turn.get("timestamp"),
+                            "ai_response": turn.get("ai_response"),
+                        }
+                        safe_turns.append(safe_turn)
+                    return safe_turns
+
+                return await get_turn_history_wrapper()
+
+            elif tool_name == "update_game_state":
+                state_update = parameters.get("state_update")
+                reason = parameters.get("reason", "AI decision")
+
+                async def update_game_state_wrapper():
+                    ctx = self._ensure_authenticated()
+                    try:
+                        session_result = self.storage.get_session(ctx.session_id)
+                        if isinstance(session_result, Failure):
+                            return {"error": "Session access failed", "success": False}
+
+                        session = session_result.unwrap()
+                        if not session:
+                            return {"error": "Session not found", "success": False}
+
+                        session["last_ai_action"] = {
+                            "action": state_update,
+                            "reason": reason,
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                        session["last_activity"] = datetime.now().isoformat()
+
+                        update_result = self.storage.update_session(
+                            ctx.session_id, session
+                        )
+                        if isinstance(update_result, Failure):
+                            return {"error": "State update failed", "success": False}
+
+                        return {
+                            "success": True,
+                            "action": state_update,
+                            "reason": reason,
+                            "timestamp": session["last_activity"],
+                        }
+                    except Exception as e:
+                        logger.error("State update error", error=str(e))
+                        return {
+                            "error": "Internal state update error",
+                            "success": False,
+                        }
+
+                return await update_game_state_wrapper()
+
+            elif tool_name == "check_player_status":
+                player_email = parameters.get("player_email")
+
+                async def check_player_status_wrapper():
+                    ctx = self._ensure_authenticated()
+                    result = self.storage.get_player_status(
+                        player_email, ctx.session_id
+                    )
+                    if isinstance(result, Failure):
+                        return {
+                            "error": "Failed to check player status",
+                            "found": False,
+                        }
+
+                    player_data = result.unwrap()
+                    if not player_data:
+                        return {"found": False, "player_email": player_email}
+
+                    return {
+                        "found": True,
+                        "player_email": player_email,
+                        "status": player_data.get("status", "unknown"),
+                        "last_turn": player_data.get("last_turn_timestamp"),
+                        "turn_count": player_data.get("turn_count", 0),
+                    }
+
+                return await check_player_status_wrapper()
+
+            elif tool_name == "add_player":
+                player_email = parameters.get("player_email")
+
+                async def add_player_wrapper():
+                    ctx = self._ensure_authenticated()
+                    try:
+                        session_result = self.storage.get_session(ctx.session_id)
+                        if isinstance(session_result, Failure):
+                            return {"error": "Session access failed", "success": False}
+
+                        session = session_result.unwrap()
+                        if not session:
+                            return {"error": "Session not found", "success": False}
+
+                        session_status = session.get("status", "unknown")
+                        if session_status not in [
+                            "initializing",
+                            "waiting_for_players",
+                        ]:
+                            return {
+                                "error": "Cannot add players after game has started",
+                                "success": False,
+                                "current_status": session_status,
+                                "allowed_statuses": [
+                                    "initializing",
+                                    "waiting_for_players",
+                                ],
+                            }
+
+                        current_players = session.get("players", [])
+                        if player_email in current_players:
+                            return {
+                                "error": "Player already in session",
+                                "success": False,
+                                "player_email": player_email,
+                            }
+
+                        current_players.append(player_email)
+                        session["players"] = current_players
+                        session["last_activity"] = datetime.now().isoformat()
+
+                        update_result = self.storage.update_session(
+                            ctx.session_id, session
+                        )
+                        if isinstance(update_result, Failure):
+                            return {
+                                "error": "Failed to update session",
+                                "success": False,
+                            }
+
+                        return {
+                            "success": True,
+                            "player_email": player_email,
+                            "player_count": len(current_players),
+                            "session_status": session_status,
+                            "message": f"Player {player_email} added successfully",
+                        }
+                    except Exception as e:
+                        logger.error("Add player error", error=str(e))
+                        return {
+                            "error": "Internal error adding player",
+                            "success": False,
+                        }
+
+                return await add_player_wrapper()
+
+            elif tool_name == "get_game_rules":
+
+                async def get_game_rules_wrapper():
+                    ctx = self._ensure_authenticated()
+                    rules_path = f"games/{ctx.game_type}/AGENT.md"
+                    try:
+                        from pathlib import Path
+
+                        rules_file = Path(rules_path)
+                        if rules_file.exists():
+                            rules_content = rules_file.read_text()
+                            return {
+                                "game_type": ctx.game_type,
+                                "rules_content": rules_content,
+                                "loaded": True,
+                            }
+                        else:
+                            return {
+                                "game_type": ctx.game_type,
+                                "error": "Rules file not found",
+                                "loaded": False,
+                            }
+                    except Exception as e:
+                        return {
+                            "game_type": ctx.game_type,
+                            "error": f"Failed to load rules: {str(e)}",
+                            "loaded": False,
+                        }
+
+                return await get_game_rules_wrapper()
+            else:
+                return {"error": f"Tool {tool_name} not found"}
 
         except Exception as e:
             logger.error("Tool execution error", tool=tool_name, error=str(e))
