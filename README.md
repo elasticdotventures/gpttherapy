@@ -87,6 +87,8 @@ just setup-github-secrets  # Configure GitHub Actions secrets
 
 ### Development Commands
 
+All project commands are managed through the `justfile` for consistency and DRY principles. Run `just` to see all available commands.
+
 ```bash
 # Development workflow
 just test                  # Run all tests
@@ -98,6 +100,13 @@ just pre-commit            # Run pre-commit hooks
 just tf-deploy             # Deploy infrastructure
 just logs                  # View Lambda function logs
 just status                # Show project and tool status
+
+# Admin CLI operations
+just admin-sessions        # List all active sessions
+just admin-session <ID>    # Show session details
+just admin-logs            # Tail recent logs (supports --filter and --lines)
+just admin-logs-dump       # Dump logs for analysis
+just admin-envrc           # Generate .envrc from terraform state
 
 # Database migrations
 cd context_portal && alembic upgrade head
@@ -122,6 +131,7 @@ gpttherapy/
 │   ├── state_machines.py         # Session/turn state machines
 │   ├── storage.py                # DynamoDB and S3 abstraction
 │   └── timeout_processor.py      # Timeout and reminder handling
+├── admin_cli.py                   # Admin CLI/TUI tool (b00t Python patterns)
 ├── tests/                         # Comprehensive test suite
 ├── terraform/                     # Infrastructure as Code
 │   ├── backend.tf                # AWS provider and backend
@@ -299,7 +309,7 @@ The project includes automated GitHub Actions workflows:
 - **Automated Deployment**: Deploy to Lambda on main branch push
 - **Security Scanning**: Dependency vulnerability checks
 
-## 📈 Monitoring
+## 📈 Monitoring & Administration
 
 ### Built-in Observability
 
@@ -307,6 +317,28 @@ The project includes automated GitHub Actions workflows:
 - **Health Checks**: Automated system health monitoring
 - **Performance Tracking**: Lambda execution time and memory usage
 - **Error Monitoring**: Structured error logging with context
+
+### Admin CLI Tool
+
+The project includes a comprehensive admin CLI built with b00t Python patterns:
+
+```bash
+# Session management
+just admin-sessions                    # List all active sessions
+just admin-session <SESSION_ID>       # Show detailed session info
+
+# Log monitoring with filters
+just admin-logs game                   # Filter game-related logs
+just admin-logs session 50            # Show session logs (50 lines)
+just admin-logs-dump "*" 2h           # Dump all logs from last 2 hours
+
+# Environment management
+just admin-envrc                      # Generate .envrc from terraform state
+
+# Future capabilities (placeholders)
+just admin-tui                        # Launch TUI interface
+just admin-mcp                        # Run as MCP server
+```
 
 ### Dashboard Access
 
