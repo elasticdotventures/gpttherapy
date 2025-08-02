@@ -20,13 +20,13 @@ test:
 # Run linting and formatting
 lint:
     uv run ruff check .
-    uv run black --check .
+    uv run ruff format --check .
     uv run mypy src/
 
 # Fix linting issues
 fix:
     uv run ruff check --fix .
-    uv run black .
+    uv run ruff format .
 
 # Run pre-commit hooks on all files
 pre-commit:
@@ -234,3 +234,38 @@ clean:
     find . -type f -name "*.pyc" -delete
     find . -type f -name "*.pyo" -delete
     @echo "✅ Cleanup complete"
+
+# Admin CLI commands
+# =================
+
+# List all active sessions
+admin-sessions:
+    uv run python admin_cli.py sessions list
+
+# Show detailed session information
+admin-session SESSION_ID:
+    uv run python admin_cli.py sessions show {{SESSION_ID}}
+
+# Tail recent logs with optional filter
+admin-logs FILTER="*" LINES="100":
+    uv run python admin_cli.py logs tail --filter={{FILTER}} --lines={{LINES}}
+
+# Dump logs for analysis
+admin-logs-dump FILTER="*" SINCE="1h":
+    uv run python admin_cli.py logs dump --filter={{FILTER}} --since={{SINCE}}
+
+# Generate .envrc from terraform state
+admin-envrc:
+    uv run python admin_cli.py env generate
+
+# Launch admin TUI (when implemented)
+admin-tui:
+    uv run python admin_cli.py tui
+
+# Run admin MCP server (when implemented)
+admin-mcp:
+    uv run python admin_cli.py mcp
+
+# Check GitHub secrets configuration
+check-github-secrets:
+    @gh secret list --app actions || echo "❌ Not in a GitHub repository or gh not authenticated"

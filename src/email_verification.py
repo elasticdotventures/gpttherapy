@@ -180,9 +180,11 @@ class EmailVerificationManager:
             domain_attrs = verification_attrs.get(domain, {})
 
             return {
-                "status": "healthy"
-                if domain_attrs.get("VerificationStatus") == "Success"
-                else "unhealthy",
+                "status": (
+                    "healthy"
+                    if domain_attrs.get("VerificationStatus") == "Success"
+                    else "unhealthy"
+                ),
                 "domain": domain,
                 "verification_status": domain_attrs.get("VerificationStatus"),
                 "verification_token": domain_attrs.get("VerificationToken"),
