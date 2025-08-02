@@ -233,7 +233,12 @@ class EnvironmentGenerator:
 def cli(verbose: bool):
     """GPTTherapy Admin CLI - Manage sessions, logs, and infrastructure."""
     if verbose:
-        structlog.configure(level="DEBUG")
+        import logging
+
+        logging.basicConfig(level=logging.DEBUG)
+        structlog.configure(
+            wrapper_class=structlog.make_filtering_bound_logger(logging.DEBUG),
+        )
 
 
 @cli.group()
