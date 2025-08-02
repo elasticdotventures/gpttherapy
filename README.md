@@ -6,7 +6,7 @@ A serverless, email-only, asynchronous communication system mediated by AI agent
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Serverless](https://img.shields.io/badge/serverless-AWS%20Lambda-orange.svg)](https://aws.amazon.com/lambda/)
-[![Code Quality](https://img.shields.io/badge/code%20quality-black%20%7C%20ruff-black)](https://github.com/psf/black)
+[![Code Quality](https://img.shields.io/badge/code%20quality-ruff-black)](https://github.com/astral-sh/ruff)
 
 ## 🎯 Overview
 
@@ -365,8 +365,7 @@ just tf-outputs
 ### Code Standards
 
 - **Python 3.12+** with modern typing
-- **Black** code formatting
-- **Ruff** linting
+- **Ruff** code formatting and linting
 - **MyPy** type checking
 - **Comprehensive testing** with pytest
 

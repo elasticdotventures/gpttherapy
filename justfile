@@ -20,13 +20,13 @@ test:
 # Run linting and formatting
 lint:
     uv run ruff check .
-    uv run black --check .
+    uv run ruff format --check .
     uv run mypy src/
 
 # Fix linting issues
 fix:
     uv run ruff check --fix .
-    uv run black .
+    uv run ruff format .
 
 # Run pre-commit hooks on all files
 pre-commit:
